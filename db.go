@@ -5,6 +5,8 @@ import (
 	"log"
 	"strings"
 
+	"fmt"
+
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/telegram-bot-api.v4"
 )
@@ -180,8 +182,33 @@ func CrashIfError(er error) {
 
 // функция отправляет технику список незакрытых заявок
 // для каждой заявки добавляется кнопка для отправки отчета
-func (d *Db) Tiket(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
+func (d *Db) Tiket(b *tgbotapi.BotAPI, u *tgbotapi.Update) {
+	var (
+		id, tiketid     int
+		address, client string
+	)
+	err := d.sUserByChatid.QueryRow(u.Message.Chat.ID).Scan(&id)
+	CrashIfError(err)
+	if id != 0 {
+		msg := tgbotapi.NewMessage(u.Message.Chat.ID, "")
+		rows, err := d.sTiketsByUserid.Query(id)
+		if err != nil {
+			b.Send(tgbotapi.NewMessage(u.Message.Chat.ID, "что-то пошло не так! не могу прочитать заявки"))
+		} else {
+			for rows.Next() {
+				err = rows.Scan(&tiketid, &client, &address)
+				if err != nil {
+					msg.Text = fmt.Sprintf("%s\n%s", client, address)
+					keyb := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(client, fmt.Sprint("r", tiketid))))
+					msg.ReplyMarkup = keyb
+					b.Send(msg)
+				}
+			}
 
+		}
+	} else {
+		b.Send(tgbotapi.NewMessage(u.Message.Chat.ID, "для получения списка заявок необходимо авторизоваться"))
+	}
 }
 
 // функция отправляет сообщение-инструкцию как пользоваться ботом
