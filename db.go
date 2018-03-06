@@ -5,8 +5,6 @@ import (
 	"log"
 	"strings"
 
-	"errors"
-
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/telegram-bot-api.v4"
 )
@@ -127,6 +125,7 @@ var ServiceTypeKeyb = tgbotapi.NewInlineKeyboardMarkup(
 
 func initialize(dbconfig string) (*Db, error) {
 	suz, err := sql.Open("mysql", dbconfig)
+	defer suz.Close()
 	if err != nil {
 		return &Db{}, err
 	}
@@ -151,29 +150,25 @@ func initialize(dbconfig string) (*Db, error) {
 
 // функция для авторизации техников
 // авторизация по номеру телефона(без отправки смс)
-func Login(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
+func (d *Db) Login(b *tgbotapi.BotAPI, u *tgbotapi.Update) {
 	ln := strings.Count(u.Message.Contact.PhoneNumber, "")
 	if ln < 11 {
 		b.Send(tgbotapi.NewMessage(u.Message.Chat.ID, "Номер слишком короткий"))
-		return errors.New("Номер слишком короткий")
 	}
 	phone := u.Message.Contact.PhoneNumber[ln-11:]
-	log.Printf("phone: %s", phone)
-	CrashIfError(err)
-	log.Printf("db connected")
 	id, status := 5, 55
-	err = db.QueryRow("SELECT id,status FROM mms_adm_users WHERE phone_number LIKE ? LIMIT 1", "%"+phone).Scan(&id, &status)
+	err := d.sUserByPhone.QueryRow("%"+phone).Scan(&id, &status)
 	CrashIfError(err)
 	log.Printf("id = %d, status = %d", id, status)
 	if status == 0 && id != 0 {
-		rs, err := db.Exec("UPDATE mms_adm_users SET chat_id=? WHERE id=? LIMIT 1", chat_id, id)
+		rs, err := d.uUserChatid.Exec(u.Message.Chat.ID, id)
 		CrashIfError(err)
 		affect, err := rs.RowsAffected()
 		CrashIfError(err)
 		log.Printf("updated %d rows", affect)
-		return "Идентификация пройдена успешно!", true
+		b.Send(tgbotapi.NewMessage(u.Message.Chat.ID, "Идентификация пройдена успешно!"))
 	} else {
-		return "Извини дружище, я тебя не узнаю. Похоже, тебя нет в системе.", false
+		b.Send(tgbotapi.NewMessage(u.Message.Chat.ID, "Извини дружище, я тебя не узнаю. Похоже, тебя нет в системе."))
 	}
 }
 
@@ -185,7 +180,7 @@ func CrashIfError(er error) {
 
 // функция отправляет технику список незакрытых заявок
 // для каждой заявки добавляется кнопка для отправки отчета
-func Tiket(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
+func (d *Db) Tiket(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
 
 }
 
