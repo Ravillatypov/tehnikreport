@@ -125,6 +125,30 @@ var ServiceTypeKeyb = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
+func initialize(dbconfig string) (*Db, error) {
+	suz, err := sql.Open("mysql", dbconfig)
+	if err != nil {
+		return &Db{}, err
+	}
+	suphon, err := suz.Prepare(`SELECT id,status FROM mms_adm_users WHERE phone_number LIKE ? LIMIT 1`)
+	if err != nil {
+		return &Db{}, err
+	}
+	suchat, err := suz.Prepare(`SELECT id,status FROM mms_adm_users WHERE chat_id LIKE ? LIMIT 1`)
+	if err != nil {
+		return &Db{}, err
+	}
+	uuchat, err := suz.Prepare(`UPDATE mms_adm_users SET chat_id=? WHERE id=? LIMIT 1`)
+	if err != nil {
+		return &Db{}, err
+	}
+	stbid, err := suz.Prepare(`SELECT id,client,address FROM suz_orders WHERE executor_id = ? AND coordination = 2`)
+	if err != nil {
+		return &Db{}, err
+	}
+	return &Db{mysql: suz, sUserByChatid: suchat, sUserByPhone: suphon, uUserChatid: uuchat, sTiketsByUserid: stbid}, nil
+}
+
 // функция для авторизации техников
 // авторизация по номеру телефона(без отправки смс)
 func Login(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
