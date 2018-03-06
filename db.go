@@ -212,11 +212,18 @@ func (d *Db) Tiket(b *tgbotapi.BotAPI, u *tgbotapi.Update) {
 }
 
 // функция отправляет сообщение-инструкцию как пользоваться ботом
-func Help(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
-
+func Help(b *tgbotapi.BotAPI, u *tgbotapi.Update) {
+	msg := tgbotapi.NewMessage(u.Message.Chat.ID, `Бот предназначен для сбора отчетов о выполненных работах.
+		для отправки отчетов необходимо авторизваться с помощью комманды /login
+		после авторизации можно будет смотреть свои незакрытые заявки коммандой /tiket
+		под каждой заявкой есть кнопочка, с помощю которой можно отправить отчет`)
+	b.Send(msg)
+	video := tgbotapi.NewVideoUpload(u.Message.Chat.ID, "help.avi")
+	video.Caption = "пример как пользоваться"
+	b.Send(video)
 }
 
 // парсинг сообщения для сбора нужной информации по отчету
-func ParseReport(b *tgbotapi.BotAPI, u *tgbotapi.Update) error {
+func ParseReport(b *tgbotapi.BotAPI, u *tgbotapi.Update) {
 
 }
