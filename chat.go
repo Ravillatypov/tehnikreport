@@ -6,7 +6,7 @@ import "sync"
 // после заполнения необходимых полей, отчет отправляется координатору
 // струкура удаляется
 type Report struct {
-	Id, BSO   int        // номер заявки и номер БСО
+	ID, BSO   int        // номер заявки и номер БСО
 	Comment   string     // комментарии техника по заявке, здесь же можно указать услуги
 	Status    bool       // заявка выполнена или нет
 	Services  []Service  // перечень выполненных работ
@@ -14,23 +14,25 @@ type Report struct {
 	Materials []Material // затраченные материалы
 }
 
-// id материала и количество
+// Material id материала и количество
 type Material struct {
-	Id, Count int
+	ID, Count int
 }
 
-// какая работа была выполнена
+// Service какая работа была выполнена
 type Service struct {
 	Type, Job int
 }
 
 var (
+	// ServiceTypes типы выполняемых работ
 	ServiceTypes = []string{
 		"Софт",
 		"Кабель",
 		"Телевидение",
 		"Роутер",
 	}
+	// ServiceList варианты выполняемых работ
 	ServiceList = [][]string{
 		{
 			"Оптимизация ОС",
@@ -72,6 +74,7 @@ var (
 			"Обновление прошивки",
 		},
 	}
+	// MaterialList используемые материалы
 	MaterialList = []string{
 		"",
 		"Розетка",
@@ -86,6 +89,7 @@ var (
 	}
 )
 
+// ChatState тип для хранения состояния чата
 type ChatState struct {
 	sync.RWMutex                   // нужна синхронизация для мапов
 	reports      map[uint64]Report // сохраняем для формировании  отчета
@@ -93,12 +97,14 @@ type ChatState struct {
 	users        map[uint64]int    // сопоставление chat_id и внутеннего id
 }
 
+// GetAction используется для получения action
 func (c *ChatState) GetAction(u uint64) string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.action[u]
 }
 
+// SetAction
 func (c *ChatState) SetAction(u uint64, ac string) {
 	c.Lock()
 	defer c.Unlock()
