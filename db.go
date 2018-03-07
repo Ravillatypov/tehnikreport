@@ -8,7 +8,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// тип для взаимодействия с базой СУЗа
+// Db тип для взаимодействия с базой СУЗа
 // перед началом должен быть инициализирован
 type Db struct {
 	mysql           *sql.DB   // структура базы
@@ -18,11 +18,13 @@ type Db struct {
 	sTiketsByUserid *sql.Stmt // выборка незакрытых заявок пользователя по id
 }
 
+// Tiket тип для хранения заявки
 type Tiket struct {
-	Id     int
+	ID     int
 	Client string
 }
 
+// Initialize функция для инициализации
 func Initialize(dbconfig string) (*Db, error) {
 	suz, err := sql.Open("mysql", dbconfig)
 	defer suz.Close()
@@ -48,9 +50,9 @@ func Initialize(dbconfig string) (*Db, error) {
 	return &Db{mysql: suz, sUserByChatid: suchat, sUserByPhone: suphon, uUserChatid: uuchat, sTiketsByUserid: stbid}, nil
 }
 
-// функция для авторизации техников
+// Login функция для авторизации техников
 // авторизация по номеру телефона(без отправки смс)
-func (d *Db) Login(phone string, chat_id uint64) bool {
+func (d *Db) Login(phone string, ChatID uint64) bool {
 	ln := strings.Count(phone, "")
 	if ln < 11 {
 		return false
@@ -58,21 +60,25 @@ func (d *Db) Login(phone string, chat_id uint64) bool {
 	phone = phone[ln-11:]
 	id, status := 5, 55
 	err := d.sUserByPhone.QueryRow("%"+phone).Scan(&id, &status)
-	CrashIfError(err)
+	if err != nil {
+		log.Println(err.Error())
+		return false
+	}
 	log.Printf("id = %d, status = %d", id, status)
 	if status == 0 && id != 0 {
-		rs, err := d.uUserChatid.Exec(chat_id, id)
-		CrashIfError(err)
+		rs, err := d.uUserChatid.Exec(ChatID, id)
+		if err != nil {
+			log.Println(err.Error())
+			return true
+		}
 		affect, err := rs.RowsAffected()
-		CrashIfError(err)
 		log.Printf("updated %d rows", affect)
 		return true
 	}
 	return false
 }
 
-// функция отправляет технику список незакрытых заявок
-// для каждой заявки добавляется кнопка для отправки отчета
+// LoadTikets возвращает список незакрытых заявок
 func (d *Db) LoadTikets(uid int) []Tiket {
 	var (
 		tiketid         int
@@ -85,7 +91,7 @@ func (d *Db) LoadTikets(uid int) []Tiket {
 			for rows.Next() {
 				err = rows.Scan(&tiketid, &client, &address)
 				if err != nil {
-					t = append(t, Tiket{Id: tiketid, Client: client})
+					t = append(t, Tiket{ID: tiketid, Client: client})
 				}
 			}
 		}
@@ -93,6 +99,7 @@ func (d *Db) LoadTikets(uid int) []Tiket {
 	return t
 }
 
+// LoadUsers загружает с базы авторизованные учетки
 func (d *Db) LoadUsers() map[uint64]int {
 	res := make(map[uint64]int)
 	var chatid uint64
@@ -105,10 +112,4 @@ func (d *Db) LoadUsers() map[uint64]int {
 		}
 	}
 	return res
-}
-
-func CrashIfError(er error) {
-	if er != nil {
-		log.Panic(er.Error())
-	}
 }

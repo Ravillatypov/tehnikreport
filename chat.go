@@ -1,6 +1,9 @@
 package tehnikreport
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 // Report хранит введенные данные техником
 // после заполнения необходимых полей, отчет отправляется координатору
@@ -87,6 +90,14 @@ var (
 		"F-разъём",
 		"Делитель ТВ",
 	}
+	// ReportForm шаблон отчета
+	ReportForm = `id заявки %d
+	номер БСО: %d
+	сумма: %f
+	выполненные работы: %s
+	%s
+	комментарии: %s
+	`
 )
 
 // ChatState тип для хранения состояния чата
@@ -104,19 +115,22 @@ func (c *ChatState) GetAction(u uint64) string {
 	return c.action[u]
 }
 
-// SetAction
+// SetAction задает следующее действие для чата
 func (c *ChatState) SetAction(u uint64, ac string) {
 	c.Lock()
 	defer c.Unlock()
 	c.action[u] = ac
 }
 
-func (c *ChatState) GetReport(u uint64) Report {
+// GetReport формирует отчет координатору
+func (c *ChatState) GetReport(u uint64) string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.reports[u]
+	r := c.reports[u]
+	return r.MakeReport()
 }
 
+// AddService добавляет выполненную работу
 func (c *ChatState) AddService(u uint64, s *Service) {
 	c.RLock()
 	defer c.RUnlock()
@@ -124,6 +138,8 @@ func (c *ChatState) AddService(u uint64, s *Service) {
 	rep.Services = append(rep.Services, (*s))
 	c.reports[u] = rep
 }
+
+// SetStatus устанавливает статус выполнения заявки
 func (c *ChatState) SetStatus(u uint64, s bool) {
 	c.RLock()
 	defer c.RUnlock()
@@ -131,9 +147,48 @@ func (c *ChatState) SetStatus(u uint64, s bool) {
 	rep.Status = s
 	c.reports[u] = rep
 }
+
+// GetStatus получает статус выполнения заявки
 func (c *ChatState) GetStatus(u uint64) bool {
 	c.RLock()
 	defer c.RUnlock()
 	rep := c.reports[u]
 	return rep.Status
+}
+
+// MakeReport создает отчет координатору
+func (r *Report) MakeReport() string {
+	if !r.Status {
+		return fmt.Sprintf("заявка с id = %d не выполнена", r.ID)
+	}
+	var allservises string
+	materials := "Материалы: "
+	for _, i := range r.Services {
+		allservises += i.Print()
+	}
+	for _, m := range r.Materials {
+		materials += m.Print()
+	}
+	if r.Amount >= 1000.0 {
+		return fmt.Sprintf(ReportForm, r.ID, r.BSO, r.Amount,
+			"Выезд;\n"+allservises,
+			materials, r.Comment)
+	}
+	return fmt.Sprintf(ReportForm, r.ID, r.BSO, r.Amount,
+		"Выезд;\nДиагностика;\n"+allservises,
+		materials, r.Comment)
+
+}
+
+// Print формирует строку для печати
+func (s *Service) Print() string {
+	return ServiceList[s.Type][s.Job] + ";\n"
+}
+
+// Print формирует строку для печати
+func (m *Material) Print() string {
+	if m.ID == 5 || m.ID == 6 {
+		return MaterialList[m.ID] + fmt.Sprintf(" %d м.;\n", m.Count)
+	}
+	return MaterialList[m.ID] + fmt.Sprintf(" %d шт.;\n", m.Count)
 }
