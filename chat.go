@@ -3,6 +3,8 @@ package tehnikreport
 import (
 	"fmt"
 	"sync"
+
+	"gopkg.in/telegram-bot-api.v4"
 )
 
 // Report хранит введенные данные техником
@@ -191,4 +193,68 @@ func (m *Material) Print() string {
 		return MaterialList[m.ID] + fmt.Sprintf(" %d м.;\n", m.Count)
 	}
 	return MaterialList[m.ID] + fmt.Sprintf(" %d шт.;\n", m.Count)
+}
+
+// AddUser добавляет нового пользователя
+func (c *ChatState) AddUser(chatid int64, uid int) {
+	c.Lock()
+	defer c.Unlock()
+	c.users[chatid] = uid
+}
+
+// GetUserID получаем id пользователя
+func (c *ChatState) GetUserID(chatid int64) int {
+	c.RLock()
+	defer c.RUnlock()
+	return c.users[chatid]
+}
+
+// AddReport создаем новый отчет для данного чата
+func (c *ChatState) AddReport(chatid int64, reportid int) {
+	c.Lock()
+	defer c.Unlock()
+	c.reports[chatid] = Report{ID: reportid}
+}
+
+// SetBso установливаем номер БСО
+func (c *ChatState) SetBso(chatid int64, bso int) {
+	c.Lock()
+	defer c.Unlock()
+	r := c.reports[chatid]
+	r.BSO = bso
+	c.reports[chatid] = r
+}
+
+// SetAmount установливаем сумму услуг
+func (c *ChatState) SetAmount(chatid int64, amount float32) {
+	c.Lock()
+	defer c.Unlock()
+	r := c.reports[chatid]
+	r.Amount = amount
+	c.reports[chatid] = r
+}
+
+// Clear очищает отчет, состояние чата
+func (c *ChatState) Clear(chatid int64) {
+	c.Lock()
+	defer c.Unlock()
+	c.reports[chatid] = Report{}
+	c.SetAction(chatid, "")
+}
+
+// SetComment меняем коммент
+func (c *ChatState) SetComment(chatid int64, comment string) {
+	c.Lock()
+	defer c.Unlock()
+	r := c.reports[chatid]
+	r.Comment = comment
+	c.reports[chatid] = r
+}
+
+func GetSoftKeyboard() *tgbotapi.InlineKeyboardMarkup {
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
+	for k, v := range ServiceList[0] {
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(v, fmt.Sprintf("%d", k))})
+	}
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }

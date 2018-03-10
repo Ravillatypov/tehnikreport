@@ -1,9 +1,10 @@
 package tehnikreport
 
 import (
-	"net/http"
-	"net/url"
 	"strings"
+
+	"fmt"
+	"strconv"
 
 	"gopkg.in/telegram-bot-api.v4"
 )
@@ -64,6 +65,8 @@ func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
 			go ch.Tiket(u.Message)
 		case "login", "l":
 			go ch.Login(u.Message)
+		case "cancel", "c":
+			go ch.Cancel(u.Message.Chat.ID)
 		}
 	}
 	if u.Message != nil && !u.Message.IsCommand() {
@@ -81,7 +84,14 @@ func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
 }
 
 // Tiket
-func (ch *chatbot) Tiket(m *tgbotapi.Message) {}
+func (ch *chatbot) Tiket(m *tgbotapi.Message) {
+	msg := tgbotapi.NewMessage(m.Chat.ID, "")
+	for _, t := range ch.db.LoadTikets(ch.state.GetUserID(m.Chat.ID)) {
+		msg.Text = t.Client
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
+		ch.bot.Send(msg)
+	}
+}
 
 // Login
 func (ch *chatbot) Login(m *tgbotapi.Message) {
@@ -97,35 +107,109 @@ func (ch *chatbot) Login(m *tgbotapi.Message) {
 			msg.Text = "Номер телефона слишком короткий"
 			return
 		}
-		phone := "7" + m.Contact.PhoneNumber[ln-11:]
-		http.PostForm("https://oauth.telegram.org/auth/request?bot_id=466266277&origin=http%3A%2F%2Fsuz.iqvision.pro&request_access=write", url.Values{"phone": {phone}})
-		msg.Text = "Спасибо! Вам будет отправлено сообщение для подверждения, Пожалуйста нажмите \"ACCEPT\""
-		msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+		if stat, uid := ch.db.Login(m.Contact.PhoneNumber, m.Chat.ID); stat {
+			msg.Text = "Аутентификация пройдена успешно"
+			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+			ch.state.AddUser(m.Chat.ID, uid)
+		} else {
+			msg.Text = "К сожалению не удалось найти активного пользователя с данным номером"
+			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+		}
 	}
 	ch.bot.Send(msg)
 }
 
-// Oauth
-func (ch *chatbot) Oauth(u *tgbotapi.Update) {
+// NewReport
+func (ch *chatbot) NewReport(cal *tgbotapi.CallbackQuery) {
+	if strings.HasPrefix(cal.Data, "report") {
+		sid := strings.Split(cal.Data, "report")
+		id, err := strconv.Atoi(sid[1])
+		if err != nil {
+			return
+		}
+		ch.state.SetAction(cal.Message.Chat.ID, "status")
+		ch.state.AddReport(cal.Message.Chat.ID, id)
+		ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
+		msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "Заявка выполнена?")
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("да", "true"),
+			tgbotapi.NewInlineKeyboardButtonData("нет", "false"),
+		))
+		ch.bot.Send(msg)
+	}
 }
 
-// NewReport
-func (ch *chatbot) NewReport(cal *tgbotapi.CallbackQuery) {}
-
 // Status
-func (ch *chatbot) Status(cal *tgbotapi.CallbackQuery) {}
+func (ch *chatbot) Status(cal *tgbotapi.CallbackQuery) {
+	msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "")
+	switch cal.Data {
+	case "true":
+		ch.state.SetStatus(cal.Message.Chat.ID, true)
+		ch.state.SetAction(cal.Message.Chat.ID, "bso")
+		msg.Text = "какой номер БСО?"
+	case "false":
+		ch.state.SetStatus(cal.Message.Chat.ID, false)
+		ch.state.SetAction(cal.Message.Chat.ID, "comment")
+		msg.Text = "Ваши комметнарии к заявке"
+	default:
+		return
+	}
+	ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
+	ch.bot.Send(msg)
+}
 
 // Services
-func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {}
+func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {
+	switch ch.state.GetAction(cal.Message.Chat.ID) {
+	case "services":
+		switch cal.Data {
+		case "0":
+			ch.state.SetAction(cal.Message.Chat.ID, "services0")
+		}
+	}
+}
 
 // Materials
 func (ch *chatbot) Materials(cal *tgbotapi.CallbackQuery) {}
 
 // Bso
-func (ch *chatbot) Bso(m *tgbotapi.Message) {}
+func (ch *chatbot) Bso(m *tgbotapi.Message) {
+	bso, err := strconv.ParseInt(m.Text, 10, 32)
+	msg := tgbotapi.NewMessage(m.Chat.ID, "")
+	if err != nil {
+		msg.Text = "Не удалось найти номер БСО, попробуйте еще раз"
+		ch.bot.Send(msg)
+		return
+	}
+	ch.state.SetBso(m.Chat.ID, int(bso))
+	ch.state.SetAction(m.Chat.ID, "amount")
+	msg.Text = "Сумма оказанных услуг"
+	ch.bot.Send(msg)
+}
 
 // Amount
-func (ch *chatbot) Amount(m *tgbotapi.Message) {}
+func (ch *chatbot) Amount(m *tgbotapi.Message) {
+	msg := tgbotapi.NewMessage(m.Chat.ID, "")
+	amount, err := strconv.ParseFloat(m.Text, 32)
+	if err != nil {
+		msg.Text = "не удалось распознать сумму услуг"
+		ch.bot.Send(msg)
+		return
+	}
+	ch.state.SetAmount(m.Chat.ID, float32(amount))
+	ch.state.SetAction(m.Chat.ID, "services")
+	msg.Text = "Какие услуги были оказаны?"
+	msg.ReplyMarkup = ServiceTypeKeyb
+	ch.bot.Send(msg)
+
+}
 
 // Comment
-func (ch *chatbot) Comment(m *tgbotapi.Message) {}
+func (ch *chatbot) Comment(m *tgbotapi.Message) {
+	ch.state.SetComment(m.Chat.ID, m.Text)
+}
+
+// Cancel отмена заполнение отчета
+func (ch *chatbot) Cancel(chatid int64) {
+	ch.state.Clear(chatid)
+}

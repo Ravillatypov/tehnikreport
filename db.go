@@ -52,30 +52,30 @@ func Initialize(dbconfig string) (*Db, error) {
 
 // Login функция для авторизации техников
 // авторизация по номеру телефона(без отправки смс)
-func (d *Db) Login(phone string, ChatID int64) bool {
+func (d *Db) Login(phone string, ChatID int64) (bool, int) {
 	ln := strings.Count(phone, "")
 	if ln < 11 {
-		return false
+		return false, 0
 	}
 	phone = phone[ln-11:]
 	id, status := 5, 55
 	err := d.sUserByPhone.QueryRow("%"+phone).Scan(&id, &status)
 	if err != nil {
 		log.Println(err.Error())
-		return false
+		return false, 0
 	}
 	log.Printf("id = %d, status = %d", id, status)
 	if status == 0 && id != 0 {
 		rs, err := d.uUserChatid.Exec(ChatID, id)
 		if err != nil {
 			log.Println(err.Error())
-			return true
+			return true, id
 		}
 		affect, err := rs.RowsAffected()
 		log.Printf("updated %d rows", affect)
-		return true
+		return true, id
 	}
-	return false
+	return false, 0
 }
 
 // LoadTikets возвращает список незакрытых заявок
