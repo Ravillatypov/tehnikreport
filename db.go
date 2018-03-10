@@ -52,7 +52,7 @@ func Initialize(dbconfig string) (*Db, error) {
 
 // Login функция для авторизации техников
 // авторизация по номеру телефона(без отправки смс)
-func (d *Db) Login(phone string, ChatID uint64) bool {
+func (d *Db) Login(phone string, ChatID int64) bool {
 	ln := strings.Count(phone, "")
 	if ln < 11 {
 		return false
@@ -100,9 +100,9 @@ func (d *Db) LoadTikets(uid int) []Tiket {
 }
 
 // LoadUsers загружает с базы авторизованные учетки
-func (d *Db) LoadUsers() map[uint64]int {
-	res := make(map[uint64]int)
-	var chatid uint64
+func (d *Db) LoadUsers() map[int64]int {
+	res := make(map[int64]int)
+	var chatid int64
 	var uid int
 	rows, err := d.mysql.Query(`SELECT id,chat_id FROM mms_adm_users WHERE chat_id != 0 AND status = 0`)
 	if err == nil {

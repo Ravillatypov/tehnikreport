@@ -102,28 +102,28 @@ var (
 
 // ChatState тип для хранения состояния чата
 type ChatState struct {
-	sync.RWMutex                   // нужна синхронизация для мапов
-	reports      map[uint64]Report // сохраняем для формировании  отчета
-	action       map[uint64]string // что ждем от пользователя, какую инфу
-	users        map[uint64]int    // сопоставление chat_id и внутеннего id
+	sync.RWMutex                  // нужна синхронизация для мапов
+	reports      map[int64]Report // сохраняем для формировании  отчета
+	action       map[int64]string // что ждем от пользователя, какую инфу
+	users        map[int64]int    // сопоставление chat_id и внутеннего id
 }
 
 // GetAction используется для получения action
-func (c *ChatState) GetAction(u uint64) string {
+func (c *ChatState) GetAction(u int64) string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.action[u]
 }
 
 // SetAction задает следующее действие для чата
-func (c *ChatState) SetAction(u uint64, ac string) {
+func (c *ChatState) SetAction(u int64, ac string) {
 	c.Lock()
 	defer c.Unlock()
 	c.action[u] = ac
 }
 
 // GetReport формирует отчет координатору
-func (c *ChatState) GetReport(u uint64) string {
+func (c *ChatState) GetReport(u int64) string {
 	c.RLock()
 	defer c.RUnlock()
 	r := c.reports[u]
@@ -131,7 +131,7 @@ func (c *ChatState) GetReport(u uint64) string {
 }
 
 // AddService добавляет выполненную работу
-func (c *ChatState) AddService(u uint64, s *Service) {
+func (c *ChatState) AddService(u int64, s *Service) {
 	c.RLock()
 	defer c.RUnlock()
 	rep := c.reports[u]
@@ -140,7 +140,7 @@ func (c *ChatState) AddService(u uint64, s *Service) {
 }
 
 // SetStatus устанавливает статус выполнения заявки
-func (c *ChatState) SetStatus(u uint64, s bool) {
+func (c *ChatState) SetStatus(u int64, s bool) {
 	c.RLock()
 	defer c.RUnlock()
 	rep := c.reports[u]
@@ -149,7 +149,7 @@ func (c *ChatState) SetStatus(u uint64, s bool) {
 }
 
 // GetStatus получает статус выполнения заявки
-func (c *ChatState) GetStatus(u uint64) bool {
+func (c *ChatState) GetStatus(u int64) bool {
 	c.RLock()
 	defer c.RUnlock()
 	rep := c.reports[u]
