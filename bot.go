@@ -9,8 +9,8 @@ import (
 	"gopkg.in/telegram-bot-api.v4"
 )
 
-// chatbot тип для хранения всего что нужно в одном месте
-type chatbot struct {
+// ChatBot тип для хранения всего что нужно в одном месте
+type ChatBot struct {
 	db        *Db
 	state     *ChatState
 	bot       *tgbotapi.BotAPI
@@ -33,27 +33,27 @@ var ServiceTypeKeyb = tgbotapi.NewInlineKeyboardMarkup(
 )
 
 // BotInit для иницализации бота
-func BotInit(token, datadase string) (*chatbot, error) {
+func BotInit(token, datadase string) (*ChatBot, error) {
 	d, err := Initialize(datadase)
 	if err != nil {
-		return new(chatbot), err
+		return new(ChatBot), err
 	}
 	s := new(ChatState)
 	s.LoadUsers(d.LoadUsers())
 	b, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		return new(chatbot), err
+		return new(ChatBot), err
 	}
 	kb := make([]tgbotapi.InlineKeyboardMarkup, 0)
 	for i := 0; i < 4; i++ {
 		kb = append(kb, *GetKeyboard(i))
 	}
 	kb = append(kb, *GetMaterialsKeyb())
-	return &chatbot{db: d, bot: b, state: s, Keyboards: kb}, nil
+	return &ChatBot{db: d, bot: b, state: s, Keyboards: kb}, nil
 }
 
 // Help функция отправляет сообщение-инструкцию как пользоваться ботом
-func (ch *chatbot) Help(m *tgbotapi.Message) {
+func (ch *ChatBot) Help(m *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(m.Chat.ID, `Бот предназначен для сбора отчетов о выполненных работах.
 		для отправки отчетов необходимо авторизваться с помощью комманды /login
 		после авторизации можно будет смотреть свои незакрытые заявки коммандой /tiket
@@ -64,8 +64,8 @@ func (ch *chatbot) Help(m *tgbotapi.Message) {
 	ch.bot.Send(video)
 }
 
-// ParseUpdate
-func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
+// ParseUpdate по состоянию чата пользователя раздает задачи функциям
+func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 	if u.CallbackQuery != nil {
 		switch ch.state.GetAction(u.CallbackQuery.Message.Chat.ID) {
 		case "status":
@@ -73,7 +73,7 @@ func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
 		case "services":
 			go ch.Services(u.CallbackQuery)
 		case "materials":
-			go ch.Materials(u.CallbackQuery)
+			go ch.Materials(u)
 		case "soft":
 			go ch.Soft(u.CallbackQuery)
 		case "tv":
@@ -96,6 +96,8 @@ func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
 			go ch.Login(u.Message)
 		case "cancel", "c":
 			go ch.Cancel(u.Message.Chat.ID)
+		case "super", "s":
+			go ch.Super(u.Message)
 		}
 	}
 	if u.Message != nil && !u.Message.IsCommand() {
@@ -108,12 +110,14 @@ func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
 			go ch.Comment(u.Message)
 		case "login":
 			go ch.Login(u.Message)
+		case "super":
+			go ch.Super(u.Message)
 		}
 	}
 }
 
-// Tiket
-func (ch *chatbot) Tiket(m *tgbotapi.Message) {
+// Tiket получает список заявок пользователя и отправляет с кнопкой для отчета
+func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
 	for _, t := range ch.db.LoadTikets(ch.state.GetUserID(m.Chat.ID)) {
 		msg.Text = t.Client
@@ -122,13 +126,40 @@ func (ch *chatbot) Tiket(m *tgbotapi.Message) {
 	}
 }
 
-// Login
-func (ch *chatbot) Login(m *tgbotapi.Message) {
+// Login авторизация
+func (ch *ChatBot) Login(m *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
 	if m.IsCommand() {
 		msg.Text = "отправьте свой номер для авторизации"
 		msg.ReplyMarkup = tgbotapi.NewKeyboardButtonContact("мой номер")
 		ch.state.SetAction(m.Chat.ID, "login")
+	}
+	if m.Contact != nil {
+		ln := strings.Count(m.Contact.PhoneNumber, "")
+		if ln < 11 {
+			msg.Text = "Номер телефона слишком короткий"
+			return
+		}
+		if stat, uid := ch.db.Login(m.Contact.PhoneNumber, m.Chat.ID); stat {
+			msg.Text = "Аутентификация пройдена успешно"
+			ch.state.SetAction(m.Chat.ID, "")
+			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+			ch.state.AddUser(m.Chat.ID, uid)
+		} else {
+			msg.Text = "К сожалению не удалось найти активного пользователя с данным номером"
+			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+		}
+	}
+	ch.bot.Send(msg)
+}
+
+// Super авторизация
+func (ch *ChatBot) Super(m *tgbotapi.Message) {
+	msg := tgbotapi.NewMessage(m.Chat.ID, "")
+	if m.IsCommand() {
+		msg.Text = "отправьте свой номер для авторизации"
+		msg.ReplyMarkup = tgbotapi.NewKeyboardButtonContact("мой номер")
+		ch.state.SetAction(m.Chat.ID, "super")
 	}
 	if m.Contact != nil {
 		ln := strings.Count(m.Contact.PhoneNumber, "")
@@ -148,8 +179,8 @@ func (ch *chatbot) Login(m *tgbotapi.Message) {
 	ch.bot.Send(msg)
 }
 
-// NewReport
-func (ch *chatbot) NewReport(cal *tgbotapi.CallbackQuery) {
+// NewReport создает новый пустой отчет
+func (ch *ChatBot) NewReport(cal *tgbotapi.CallbackQuery) {
 	if strings.HasPrefix(cal.Data, "report") {
 		sid := strings.Split(cal.Data, "report")
 		id, err := strconv.Atoi(sid[1])
@@ -168,8 +199,8 @@ func (ch *chatbot) NewReport(cal *tgbotapi.CallbackQuery) {
 	}
 }
 
-// Status
-func (ch *chatbot) Status(cal *tgbotapi.CallbackQuery) {
+// Status получает статус заявки от пльзователя
+func (ch *ChatBot) Status(cal *tgbotapi.CallbackQuery) {
 	msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "")
 	switch cal.Data {
 	case "true":
@@ -187,8 +218,8 @@ func (ch *chatbot) Status(cal *tgbotapi.CallbackQuery) {
 	ch.bot.Send(msg)
 }
 
-// Services
-func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {
+// Services получает списой выполненных работ
+func (ch *ChatBot) Services(cal *tgbotapi.CallbackQuery) {
 	if ch.state.GetAction(cal.Message.Chat.ID) != "services" {
 		return
 	}
@@ -223,11 +254,24 @@ func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {
 	ch.bot.Send(msg)
 }
 
-// Materials
-func (ch *chatbot) Materials(cal *tgbotapi.CallbackQuery) {}
+// Materials получает список материалов
+func (ch *ChatBot) Materials(u *tgbotapi.Update) {
+	if u.CallbackQuery != nil {
+		id, err := strconv.ParseUint(u.CallbackQuery.Data, 10, 32)
+		if err == nil {
+			ch.state.AddMaterials(u.CallbackQuery.Message.Chat.ID, &Material{ID: int(id)})
+		}
+	}
+	if u.Message != nil {
+		count, err := strconv.ParseUint(u.Message.Text, 10, 32)
+		if err == nil {
+			ch.state.SetMaterialsCount(u.Message.Chat.ID, int(count))
+		}
+	}
+}
 
-// Bso
-func (ch *chatbot) Bso(m *tgbotapi.Message) {
+// Bso обрабатывает получение БСО
+func (ch *ChatBot) Bso(m *tgbotapi.Message) {
 	bso, err := strconv.ParseInt(m.Text, 10, 32)
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
 	if err != nil {
@@ -241,8 +285,8 @@ func (ch *chatbot) Bso(m *tgbotapi.Message) {
 	ch.bot.Send(msg)
 }
 
-// Amount
-func (ch *chatbot) Amount(m *tgbotapi.Message) {
+// Amount обрабатывает получение суммы услуг
+func (ch *ChatBot) Amount(m *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
 	amount, err := strconv.ParseFloat(m.Text, 32)
 	if err != nil {
@@ -258,18 +302,18 @@ func (ch *chatbot) Amount(m *tgbotapi.Message) {
 
 }
 
-// Comment
-func (ch *chatbot) Comment(m *tgbotapi.Message) {
+// Comment последний рубеж, добавляет комментарии пользователя и отправляет координатору
+func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 	ch.state.SetComment(m.Chat.ID, m.Text)
 }
 
 // Cancel отмена заполнение отчета
-func (ch *chatbot) Cancel(chatid int64) {
+func (ch *ChatBot) Cancel(chatid int64) {
 	ch.state.Clear(chatid)
 }
 
-//
-func (ch *chatbot) Soft(cal *tgbotapi.CallbackQuery) {
+// Soft обрабатывает софтовые работы
+func (ch *ChatBot) Soft(cal *tgbotapi.CallbackQuery) {
 	id, err := strconv.ParseInt(cal.Data, 10, 32)
 	if err == nil {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 0, Job: int(id)})
@@ -280,8 +324,8 @@ func (ch *chatbot) Soft(cal *tgbotapi.CallbackQuery) {
 	}
 }
 
-//
-func (ch *chatbot) Cable(cal *tgbotapi.CallbackQuery) {
+// Cable обрабатывает кабельные работы
+func (ch *ChatBot) Cable(cal *tgbotapi.CallbackQuery) {
 	id, err := strconv.ParseInt(cal.Data, 10, 32)
 	if err == nil {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 1, Job: int(id)})
@@ -292,8 +336,8 @@ func (ch *chatbot) Cable(cal *tgbotapi.CallbackQuery) {
 	}
 }
 
-//
-func (ch *chatbot) TV(cal *tgbotapi.CallbackQuery) {
+// TV обрабатывает ТВ работы
+func (ch *ChatBot) TV(cal *tgbotapi.CallbackQuery) {
 	id, err := strconv.ParseInt(cal.Data, 10, 32)
 	if err == nil {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 2, Job: int(id)})
@@ -304,8 +348,8 @@ func (ch *chatbot) TV(cal *tgbotapi.CallbackQuery) {
 	}
 }
 
-//
-func (ch *chatbot) Router(cal *tgbotapi.CallbackQuery) {
+// Router обрабатывает Роутерные работы
+func (ch *ChatBot) Router(cal *tgbotapi.CallbackQuery) {
 	id, err := strconv.ParseInt(cal.Data, 10, 32)
 	if err == nil {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 3, Job: int(id)})
@@ -315,3 +359,6 @@ func (ch *chatbot) Router(cal *tgbotapi.CallbackQuery) {
 		ch.Services(cal)
 	}
 }
+
+// Run запуск работы бота
+func (ch *ChatBot) Run() {}

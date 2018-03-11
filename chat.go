@@ -108,6 +108,7 @@ type ChatState struct {
 	reports      map[int64]Report // сохраняем для формировании  отчета
 	action       map[int64]string // что ждем от пользователя, какую инфу
 	users        map[int64]int    // сопоставление chat_id и внутеннего id
+	super        []int64
 }
 
 // GetAction используется для получения action
@@ -134,8 +135,8 @@ func (c *ChatState) GetReport(u int64) string {
 
 // AddService добавляет выполненную работу
 func (c *ChatState) AddService(u int64, s *Service) {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 	rep := c.reports[u]
 	for _, v := range rep.Services {
 		if v == *s {
@@ -146,10 +147,45 @@ func (c *ChatState) AddService(u int64, s *Service) {
 	c.reports[u] = rep
 }
 
+// AddMaterials добавляет выполненную работу
+func (c *ChatState) AddMaterials(u int64, m *Material) {
+	c.Lock()
+	defer c.Unlock()
+	rep := c.reports[u]
+	newmat := make([]Material, 0)
+	newmat = append(newmat, *m)
+	for _, v := range rep.Materials {
+		if v == *m {
+			return
+		}
+		if v.Count == 0 {
+			continue
+		}
+		newmat = append(newmat, v)
+	}
+	rep.Materials = newmat
+	c.reports[u] = rep
+}
+
+// SetMaterialsCount добавляет выполненную работу
+func (c *ChatState) SetMaterialsCount(u int64, count int) {
+	c.Lock()
+	defer c.Unlock()
+	rep := c.reports[u]
+
+	for k, v := range rep.Materials {
+		if v.Count == 0 {
+			rep.Materials[k].Count = count
+			return
+		}
+	}
+	c.reports[u] = rep
+}
+
 // SetStatus устанавливает статус выполнения заявки
 func (c *ChatState) SetStatus(u int64, s bool) {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 	rep := c.reports[u]
 	rep.Status = s
 	c.reports[u] = rep
