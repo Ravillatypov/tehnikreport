@@ -28,7 +28,7 @@ var ServiceTypeKeyb = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData(ServiceTypes[3], "3"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("все введено", "remove"),
+		tgbotapi.NewInlineKeyboardButtonData("все введено", "return"),
 	),
 )
 
@@ -44,7 +44,12 @@ func BotInit(token, datadase string) (*chatbot, error) {
 	if err != nil {
 		return new(chatbot), err
 	}
-	return &chatbot{db: d, bot: b, state: s}, nil
+	kb := make([]tgbotapi.InlineKeyboardMarkup, 0)
+	for i := 0; i < 4; i++ {
+		kb = append(kb, *GetKeyboard(i))
+	}
+	kb = append(kb, *GetMaterialsKeyb())
+	return &chatbot{db: d, bot: b, state: s, Keyboards: kb}, nil
 }
 
 // Help функция отправляет сообщение-инструкцию как пользоваться ботом
@@ -65,10 +70,18 @@ func (ch *chatbot) ParseUpdate(u *tgbotapi.Update) {
 		switch ch.state.GetAction(u.CallbackQuery.Message.Chat.ID) {
 		case "status":
 			go ch.Status(u.CallbackQuery)
-		case "services", "services0", "services1", "services2", "services3":
+		case "services":
 			go ch.Services(u.CallbackQuery)
 		case "materials":
 			go ch.Materials(u.CallbackQuery)
+		case "soft":
+			go ch.Soft(u.CallbackQuery)
+		case "tv":
+			go ch.TV(u.CallbackQuery)
+		case "cable":
+			go ch.Cable(u.CallbackQuery)
+		case "router":
+			go ch.Router(u.CallbackQuery)
 		default:
 			go ch.NewReport(u.CallbackQuery)
 		}
@@ -176,14 +189,38 @@ func (ch *chatbot) Status(cal *tgbotapi.CallbackQuery) {
 
 // Services
 func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {
-	switch ch.state.GetAction(cal.Message.Chat.ID) {
-	case "services":
-		switch cal.Data {
-		case "0":
-			ch.state.SetAction(cal.Message.Chat.ID, "services0")
-			ch.bot.DeleteMessage()
-		}
+	if ch.state.GetAction(cal.Message.Chat.ID) != "services" {
+		return
 	}
+	msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "выберите выполненные работы (множественный выбор)")
+	ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
+	switch cal.Data {
+	case "0":
+		ch.state.SetAction(cal.Message.Chat.ID, "soft")
+		msg.ReplyMarkup = ch.Keyboards[0]
+	case "1":
+		ch.state.SetAction(cal.Message.Chat.ID, "cable")
+		msg.ReplyMarkup = ch.Keyboards[1]
+	case "2":
+		ch.state.SetAction(cal.Message.Chat.ID, "tv")
+		msg.ReplyMarkup = ch.Keyboards[2]
+	case "3":
+		ch.state.SetAction(cal.Message.Chat.ID, "router")
+		msg.ReplyMarkup = ch.Keyboards[3]
+	case "return":
+		if ch.state.IsCable(cal.Message.Chat.ID) {
+			ch.state.SetAction(cal.Message.Chat.ID, "materials")
+			msg.Text = "какие материалы были использованы"
+			msg.ReplyMarkup = ch.Keyboards[4]
+		} else {
+			ch.state.SetAction(cal.Message.Chat.ID, "comment")
+			msg.Text = "ваши комментарии к заявке"
+		}
+	default:
+		//ch.state.SetAction(cal.Message.Chat.ID, "soft")
+		msg.Text = "что-то пошло не так..."
+	}
+	ch.bot.Send(msg)
 }
 
 // Materials
@@ -230,3 +267,15 @@ func (ch *chatbot) Comment(m *tgbotapi.Message) {
 func (ch *chatbot) Cancel(chatid int64) {
 	ch.state.Clear(chatid)
 }
+
+//
+func (ch *chatbot) Soft(cal *tgbotapi.CallbackQuery) {}
+
+//
+func (ch *chatbot) Cable(cal *tgbotapi.CallbackQuery) {}
+
+//
+func (ch *chatbot) TV(cal *tgbotapi.CallbackQuery) {}
+
+//
+func (ch *chatbot) Router(cal *tgbotapi.CallbackQuery) {}

@@ -137,6 +137,11 @@ func (c *ChatState) AddService(u int64, s *Service) {
 	c.RLock()
 	defer c.RUnlock()
 	rep := c.reports[u]
+	for _, v := range rep.Services {
+		if v == *s {
+			return
+		}
+	}
 	rep.Services = append(rep.Services, (*s))
 	c.reports[u] = rep
 }
@@ -209,6 +214,18 @@ func (c *ChatState) GetUserID(chatid int64) int {
 	return c.users[chatid]
 }
 
+// IsCable были ли кабельные работы
+func (c *ChatState) IsCable(chatid int64) bool {
+	c.RLock()
+	defer c.RUnlock()
+	for _, s := range c.reports[chatid].Services {
+		if s.Type == 1 {
+			return true
+		}
+	}
+	return false
+}
+
 // AddReport создаем новый отчет для данного чата
 func (c *ChatState) AddReport(chatid int64, reportid int) {
 	c.Lock()
@@ -262,6 +279,19 @@ func (c *ChatState) LoadUsers(uids *map[int64]int) {
 func GetKeyboard(i int) *tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
 	for k, v := range ServiceList[i] {
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(v, fmt.Sprintf("%d", k))})
+	}
+	rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData("все введено", "remove")})
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+// GetMaterialsKeyb создаем кнопки выбора услуг
+func GetMaterialsKeyb() *tgbotapi.InlineKeyboardMarkup {
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
+	for k, v := range MaterialList {
+		if k == 0 {
+			continue
+		}
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(v, fmt.Sprintf("%d", k))})
 	}
 	rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData("все введено", "remove")})
