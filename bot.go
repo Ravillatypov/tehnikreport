@@ -218,7 +218,7 @@ func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {
 		}
 	default:
 		//ch.state.SetAction(cal.Message.Chat.ID, "soft")
-		msg.Text = "что-то пошло не так..."
+		msg.ReplyMarkup = ServiceTypeKeyb
 	}
 	ch.bot.Send(msg)
 }
@@ -269,13 +269,49 @@ func (ch *chatbot) Cancel(chatid int64) {
 }
 
 //
-func (ch *chatbot) Soft(cal *tgbotapi.CallbackQuery) {}
+func (ch *chatbot) Soft(cal *tgbotapi.CallbackQuery) {
+	id, err := strconv.ParseInt(cal.Data, 10, 32)
+	if err == nil {
+		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 0, Job: int(id)})
+	}
+	if cal.Data == "remove" {
+		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.Services(cal)
+	}
+}
 
 //
-func (ch *chatbot) Cable(cal *tgbotapi.CallbackQuery) {}
+func (ch *chatbot) Cable(cal *tgbotapi.CallbackQuery) {
+	id, err := strconv.ParseInt(cal.Data, 10, 32)
+	if err == nil {
+		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 1, Job: int(id)})
+	}
+	if cal.Data == "remove" {
+		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.Services(cal)
+	}
+}
 
 //
-func (ch *chatbot) TV(cal *tgbotapi.CallbackQuery) {}
+func (ch *chatbot) TV(cal *tgbotapi.CallbackQuery) {
+	id, err := strconv.ParseInt(cal.Data, 10, 32)
+	if err == nil {
+		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 2, Job: int(id)})
+	}
+	if cal.Data == "remove" {
+		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.Services(cal)
+	}
+}
 
 //
-func (ch *chatbot) Router(cal *tgbotapi.CallbackQuery) {}
+func (ch *chatbot) Router(cal *tgbotapi.CallbackQuery) {
+	id, err := strconv.ParseInt(cal.Data, 10, 32)
+	if err == nil {
+		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 3, Job: int(id)})
+	}
+	if cal.Data == "remove" {
+		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.Services(cal)
+	}
+}
