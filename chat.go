@@ -251,10 +251,19 @@ func (c *ChatState) SetComment(chatid int64, comment string) {
 	c.reports[chatid] = r
 }
 
-func GetSoftKeyboard() *tgbotapi.InlineKeyboardMarkup {
+// LoadUsers меняем коммент
+func (c *ChatState) LoadUsers(uids *map[int64]int) {
+	c.Lock()
+	defer c.Unlock()
+	c.users = (*uids)
+}
+
+// GetKeyboard создаем кнопки выбора услуг
+func GetKeyboard(i int) *tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
-	for k, v := range ServiceList[0] {
+	for k, v := range ServiceList[i] {
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(v, fmt.Sprintf("%d", k))})
 	}
+	rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData("все введено", "remove")})
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }

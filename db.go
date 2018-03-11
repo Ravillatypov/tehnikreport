@@ -100,15 +100,15 @@ func (d *Db) LoadTikets(uid int) []Tiket {
 }
 
 // LoadUsers загружает с базы авторизованные учетки
-func (d *Db) LoadUsers() map[int64]int {
-	res := make(map[int64]int)
+func (d *Db) LoadUsers() *map[int64]int {
+	res := new(map[int64]int)
 	var chatid int64
 	var uid int
 	rows, err := d.mysql.Query(`SELECT id,chat_id FROM mms_adm_users WHERE chat_id != 0 AND status = 0`)
 	if err == nil {
 		for rows.Next() {
 			rows.Scan(&uid, &chatid)
-			res[chatid] = uid
+			(*res)[chatid] = uid
 		}
 	}
 	return res

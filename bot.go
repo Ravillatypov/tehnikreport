@@ -11,9 +11,10 @@ import (
 
 // chatbot тип для хранения всего что нужно в одном месте
 type chatbot struct {
-	db    *Db
-	state *ChatState
-	bot   *tgbotapi.BotAPI
+	db        *Db
+	state     *ChatState
+	bot       *tgbotapi.BotAPI
+	Keyboards []tgbotapi.InlineKeyboardMarkup
 }
 
 // ServiceTypeKeyb кнопки выбора типа выполненных работ
@@ -30,6 +31,21 @@ var ServiceTypeKeyb = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("все введено", "remove"),
 	),
 )
+
+// BotInit для иницализации бота
+func BotInit(token, datadase string) (*chatbot, error) {
+	d, err := Initialize(datadase)
+	if err != nil {
+		return new(chatbot), err
+	}
+	s := new(ChatState)
+	s.LoadUsers(d.LoadUsers())
+	b, err := tgbotapi.NewBotAPI(token)
+	if err != nil {
+		return new(chatbot), err
+	}
+	return &chatbot{db: d, bot: b, state: s}, nil
+}
 
 // Help функция отправляет сообщение-инструкцию как пользоваться ботом
 func (ch *chatbot) Help(m *tgbotapi.Message) {
@@ -165,6 +181,7 @@ func (ch *chatbot) Services(cal *tgbotapi.CallbackQuery) {
 		switch cal.Data {
 		case "0":
 			ch.state.SetAction(cal.Message.Chat.ID, "services0")
+			ch.bot.DeleteMessage()
 		}
 	}
 }
