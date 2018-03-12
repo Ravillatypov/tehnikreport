@@ -149,7 +149,7 @@ func (ch *ChatBot) Login(m *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
 	if m.IsCommand() {
 		msg.Text = "отправьте свой номер для авторизации"
-		msg.ReplyMarkup = tgbotapi.NewKeyboardButtonContact("мой номер")
+		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButtonContact("мой номер")))
 		ch.state.SetAction(m.Chat.ID, "login")
 	}
 	if m.Contact != nil {
