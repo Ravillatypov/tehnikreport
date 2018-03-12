@@ -2,6 +2,7 @@ package tehnikreport
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"gopkg.in/telegram-bot-api.v4"
@@ -113,6 +114,7 @@ type ChatState struct {
 
 // GetAction используется для получения action
 func (c *ChatState) GetAction(u int64) string {
+	log.Println("GetAction", u)
 	c.RLock()
 	defer c.RUnlock()
 	return c.action[u]
@@ -120,6 +122,7 @@ func (c *ChatState) GetAction(u int64) string {
 
 // SetAction задает следующее действие для чата
 func (c *ChatState) SetAction(u int64, ac string) {
+	log.Println("SetAction", u, ac)
 	c.Lock()
 	defer c.Unlock()
 	c.action[u] = ac
@@ -127,14 +130,17 @@ func (c *ChatState) SetAction(u int64, ac string) {
 
 // GetReport формирует отчет координатору
 func (c *ChatState) GetReport(u int64) string {
+	log.Println("GetReport", u)
 	c.RLock()
 	defer c.RUnlock()
 	r := c.reports[u]
+	log.Println(r)
 	return r.MakeReport()
 }
 
 // AddService добавляет выполненную работу
 func (c *ChatState) AddService(u int64, s *Service) {
+	log.Println("AddService", u, *s)
 	c.Lock()
 	defer c.Unlock()
 	rep := c.reports[u]
@@ -149,6 +155,7 @@ func (c *ChatState) AddService(u int64, s *Service) {
 
 // AddMaterials добавляет выполненную работу
 func (c *ChatState) AddMaterials(u int64, m *Material) {
+	log.Println("AddMaterials", u, *m)
 	c.Lock()
 	defer c.Unlock()
 	rep := c.reports[u]
@@ -169,6 +176,7 @@ func (c *ChatState) AddMaterials(u int64, m *Material) {
 
 // SetMaterialsCount добавляет выполненную работу
 func (c *ChatState) SetMaterialsCount(u int64, count int) {
+	log.Println("SetMaterialCount", u, count)
 	c.Lock()
 	defer c.Unlock()
 	rep := c.reports[u]
@@ -184,6 +192,7 @@ func (c *ChatState) SetMaterialsCount(u int64, count int) {
 
 // SetStatus устанавливает статус выполнения заявки
 func (c *ChatState) SetStatus(u int64, s bool) {
+	log.Println("SetStatus", u, s)
 	c.Lock()
 	defer c.Unlock()
 	rep := c.reports[u]
@@ -193,6 +202,7 @@ func (c *ChatState) SetStatus(u int64, s bool) {
 
 // GetStatus получает статус выполнения заявки
 func (c *ChatState) GetStatus(u int64) bool {
+	log.Println("GetStatus", u)
 	c.RLock()
 	defer c.RUnlock()
 	rep := c.reports[u]
@@ -201,6 +211,7 @@ func (c *ChatState) GetStatus(u int64) bool {
 
 // MakeReport создает отчет координатору
 func (r *Report) MakeReport() string {
+	log.Println("MakeReport")
 	if !r.Status {
 		return fmt.Sprintf("заявка с id = %d не выполнена", r.ID)
 	}
@@ -238,6 +249,7 @@ func (m *Material) Print() string {
 
 // AddUser добавляет нового пользователя
 func (c *ChatState) AddUser(chatid int64, uid int) {
+	log.Println("AddUser", chatid, uid)
 	c.Lock()
 	defer c.Unlock()
 	c.users[chatid] = uid
@@ -245,6 +257,7 @@ func (c *ChatState) AddUser(chatid int64, uid int) {
 
 // GetUserID получаем id пользователя
 func (c *ChatState) GetUserID(chatid int64) int {
+	log.Println("GetUserID", chatid)
 	c.RLock()
 	defer c.RUnlock()
 	return c.users[chatid]
