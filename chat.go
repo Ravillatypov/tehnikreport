@@ -125,7 +125,10 @@ func (c *ChatState) SetAction(u int64, ac string) {
 	log.Println("SetAction", u, ac)
 	c.Lock()
 	defer c.Unlock()
-	c.action[u] = ac
+	a := c.action
+	log.Println(a)
+	a[u] = ac
+	c.action = a
 }
 
 // GetReport формирует отчет координатору
