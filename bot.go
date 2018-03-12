@@ -41,7 +41,12 @@ func BotInit(token, datadase string) (*ChatBot, error) {
 		log.Println(err.Error())
 		return new(ChatBot), err
 	}
-	s := new(ChatState)
+	s := &ChatState{
+		reports: make(map[int64]Report),
+		super:   make([]int64, 0),
+		action:  make(map[int64]string),
+		users:   make(map[int64]int),
+	}
 	s.LoadUsers(d.LoadUsers())
 	b, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
