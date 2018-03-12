@@ -27,7 +27,7 @@ type Tiket struct {
 // Initialize функция для инициализации
 func Initialize(dbconfig string) (*Db, error) {
 	suz, err := sql.Open("mysql", dbconfig)
-	defer suz.Close()
+	//defer suz.Close()
 	if err != nil {
 		return &Db{}, err
 	}
@@ -43,7 +43,7 @@ func Initialize(dbconfig string) (*Db, error) {
 	if err != nil {
 		return &Db{}, err
 	}
-	stbid, err := suz.Prepare(`SELECT id,client,address FROM suz_orders WHERE executor_id = ? AND coordination = 2`)
+	stbid, err := suz.Prepare(`SELECT id,client FROM suz_orders WHERE executor_id = ? AND coordination = 2`)
 	if err != nil {
 		return &Db{}, err
 	}
@@ -80,20 +80,25 @@ func (d *Db) Login(phone string, ChatID int64) (bool, int) {
 
 // LoadTikets возвращает список незакрытых заявок
 func (d *Db) LoadTikets(uid int) []Tiket {
-	var (
-		tiketid         int
-		address, client string
-	)
-	t := make([]Tiket, 1)
+	log.Println("Db LoadTikets", uid)
+	t := make([]Tiket, 0)
 	if uid != 0 {
 		rows, err := d.sTiketsByUserid.Query(uid)
+		defer rows.Close()
 		if err == nil {
 			for rows.Next() {
-				err = rows.Scan(&tiketid, &client, &address)
-				if err != nil {
+				var (
+					tiketid int
+					client  string
+				)
+				err = rows.Scan(&tiketid, &client)
+				if err == nil {
 					t = append(t, Tiket{ID: tiketid, Client: client})
+					log.Println("Db LoadTikets", uid, tiketid, client)
 				}
 			}
+		} else {
+			log.Println("Db LoadTikets", uid, err.Error())
 		}
 	}
 	return t
@@ -101,17 +106,22 @@ func (d *Db) LoadTikets(uid int) []Tiket {
 
 // LoadUsers загружает с базы авторизованные учетки
 func (d *Db) LoadUsers() *map[int64]int {
-	res := new(map[int64]int)
+	log.Println("Db LoadUsers")
+	res := make(map[int64]int)
 	var chatid int64
 	var uid int
 	rows, err := d.mysql.Query(`SELECT id,chat_id FROM mms_adm_users WHERE chat_id != 0 AND status = 0`)
 	if err == nil {
 		for rows.Next() {
 			rows.Scan(&uid, &chatid)
-			(*res)[chatid] = uid
+			res[chatid] = uid
+			log.Println("Db LoadUsers", uid, chatid)
 		}
+	} else {
+		log.Println("Db LoadUsers", err.Error())
 	}
-	return res
+	log.Println("Db LoadUsers", res)
+	return &res
 }
 
 // LoadSupers загружает с базы авторизованные учетки

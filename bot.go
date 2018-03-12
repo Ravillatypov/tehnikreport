@@ -134,15 +134,15 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	log.Println("Tiket", *m)
 	msg := tgbotapi.NewMessage(m.Chat.ID, "нет открытых заявок")
-	tikets := ch.db.LoadTikets(ch.state.GetUserID(m.Chat.ID))
-	for _, t := range tikets {
-		if len(tikets) == 0 {
-			continue
+	uid := ch.state.GetUserID(m.Chat.ID)
+	tikets := ch.db.LoadTikets(uid)
+	log.Println("Tiket", uid, tikets)
+	if len(tikets) > 0 {
+		for _, t := range tikets {
+			msg.Text = t.Client
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
+			ch.bot.Send(msg)
 		}
-		msg.Text = t.Client
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
-		ch.bot.Send(msg)
-		return
 	}
 	ch.bot.Send(msg)
 }
@@ -289,6 +289,7 @@ func (ch *ChatBot) Materials(u *tgbotapi.Update) {
 		id, err := strconv.ParseUint(u.CallbackQuery.Data, 10, 32)
 		if err == nil {
 			ch.state.AddMaterials(u.CallbackQuery.Message.Chat.ID, &Material{ID: int(id)})
+			ch.bot.Send(tgbotapi.NewMessage(u.CallbackQuery.Message.Chat.ID, "количество?"))
 			return
 		}
 		if u.CallbackQuery.Data == "remove" {

@@ -330,6 +330,7 @@ func (c *ChatState) MakeReport(chatid int64) string {
 
 // LoadUsers меняем коммент
 func (c *ChatState) LoadUsers(uids *map[int64]int) {
+	log.Println("ChatState LoadUsers", *uids)
 	c.Lock()
 	defer c.Unlock()
 	c.users = (*uids)
