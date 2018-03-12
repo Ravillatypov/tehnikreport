@@ -134,7 +134,11 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	log.Println("Tiket", *m)
 	msg := tgbotapi.NewMessage(m.Chat.ID, "нет открытых заявок")
-	for _, t := range ch.db.LoadTikets(ch.state.GetUserID(m.Chat.ID)) {
+	tikets := ch.db.LoadTikets(ch.state.GetUserID(m.Chat.ID))
+	for _, t := range tikets {
+		if len(tikets) == 0 {
+			continue
+		}
 		msg.Text = t.Client
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
 		ch.bot.Send(msg)
