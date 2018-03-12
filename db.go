@@ -113,3 +113,17 @@ func (d *Db) LoadUsers() *map[int64]int {
 	}
 	return res
 }
+
+// LoadSupers загружает с базы авторизованные учетки
+func (d *Db) LoadSupers() []int64 {
+	res := make([]int64, 0)
+	var chatid int64
+	rows, err := d.mysql.Query(`SELECT chat_id FROM mms_adm_users WHERE chat_id != 0 AND status = 0 AND gid != 12`)
+	if err == nil {
+		for rows.Next() {
+			rows.Scan(&chatid)
+			res = append(res, chatid)
+		}
+	}
+	return res
+}

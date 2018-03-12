@@ -304,11 +304,33 @@ func (c *ChatState) SetComment(chatid int64, comment string) {
 	c.reports[chatid] = r
 }
 
+// MakeReport
+func (c *ChatState) MakeReport(chatid int64) string {
+	c.RLock()
+	defer c.RUnlock()
+	r := c.reports[chatid]
+	return r.MakeReport()
+}
+
 // LoadUsers меняем коммент
 func (c *ChatState) LoadUsers(uids *map[int64]int) {
 	c.Lock()
 	defer c.Unlock()
 	c.users = (*uids)
+}
+
+// AddSuper меняем коммент
+func (c *ChatState) AddSuper(chatid int64) {
+	c.Lock()
+	defer c.Unlock()
+	s := make([]int64, 0)
+	for _, v := range c.super {
+		if v == chatid {
+			return
+		}
+		s = append(s, chatid)
+	}
+	c.super = s
 }
 
 // GetKeyboard создаем кнопки выбора услуг
