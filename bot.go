@@ -128,12 +128,14 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 // Tiket получает список заявок пользователя и отправляет с кнопкой для отчета
 func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	log.Println("Tiket", *m)
-	msg := tgbotapi.NewMessage(m.Chat.ID, "")
+	msg := tgbotapi.NewMessage(m.Chat.ID, "нет открытых заявок")
 	for _, t := range ch.db.LoadTikets(ch.state.GetUserID(m.Chat.ID)) {
 		msg.Text = t.Client
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
 		ch.bot.Send(msg)
+		return
 	}
+	ch.bot.Send(msg)
 }
 
 // Login авторизация
@@ -278,6 +280,13 @@ func (ch *ChatBot) Materials(u *tgbotapi.Update) {
 		id, err := strconv.ParseUint(u.CallbackQuery.Data, 10, 32)
 		if err == nil {
 			ch.state.AddMaterials(u.CallbackQuery.Message.Chat.ID, &Material{ID: int(id)})
+			return
+		}
+		if u.CallbackQuery.Data == "remove" {
+			ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: u.CallbackQuery.Message.Chat.ID, MessageID: u.CallbackQuery.Message.MessageID})
+			ch.state.SetAction(u.CallbackQuery.Message.Chat.ID, "comment")
+			msg := tgbotapi.NewMessage(u.CallbackQuery.Message.Chat.ID, "Ваши комментари к заявке")
+			ch.bot.Send(msg)
 		}
 	}
 	if u.Message != nil {
@@ -316,9 +325,7 @@ func (ch *ChatBot) Amount(m *tgbotapi.Message) {
 	}
 	ch.state.SetAmount(m.Chat.ID, float32(amount))
 	ch.state.SetAction(m.Chat.ID, "services")
-	msg.Text = "Какие услуги были оказаны?"
-	msg.ReplyMarkup = ServiceTypeKeyb
-	ch.bot.Send(msg)
+	ch.Services(&tgbotapi.CallbackQuery{From: m.From, Message: m})
 
 }
 
