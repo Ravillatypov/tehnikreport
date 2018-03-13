@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql" // у нас все работает на mysql
 )
 
 // Db тип для взаимодействия с базой СУЗа
@@ -20,14 +20,13 @@ type Db struct {
 
 // Tiket тип для хранения заявки
 type Tiket struct {
-	ID     int
+	ID     uint32
 	Client string
 }
 
 // Initialize функция для инициализации
 func Initialize(dbconfig string) (*Db, error) {
 	suz, err := sql.Open("mysql", dbconfig)
-	//defer suz.Close()
 	if err != nil {
 		return &Db{}, err
 	}
@@ -52,16 +51,25 @@ func Initialize(dbconfig string) (*Db, error) {
 
 // Login функция для авторизации техников
 // авторизация по номеру телефона(без отправки смс)
-func (d *Db) Login(phone string, ChatID int64) (bool, int) {
+func (d *Db) Login(phone string, ChatID int64) (bool, uint16) {
+	log.Println("DB Login", phone, ChatID)
 	ln := strings.Count(phone, "")
 	if ln < 11 {
 		return false, 0
 	}
 	phone = phone[ln-11:]
-	id, status := 5, 55
-	err := d.sUserByPhone.QueryRow("%"+phone).Scan(&id, &status)
+	status := 55
+	var id uint16
+	rows, err := d.sUserByPhone.Query("%" + phone)
+	defer rows.Close()
 	if err != nil {
 		log.Println(err.Error())
+		return false, 0
+	}
+	rows.Next()
+	err = rows.Scan(&id, &status)
+	if err != nil {
+		log.Println("DB Login", err.Error())
 		return false, 0
 	}
 	log.Printf("id = %d, status = %d", id, status)
@@ -79,46 +87,48 @@ func (d *Db) Login(phone string, ChatID int64) (bool, int) {
 }
 
 // LoadTikets возвращает список незакрытых заявок
-func (d *Db) LoadTikets(uid int) []Tiket {
+func (d *Db) LoadTikets(uid uint16) []Tiket {
 	log.Println("Db LoadTikets", uid)
 	t := make([]Tiket, 0)
 	if uid != 0 {
 		rows, err := d.sTiketsByUserid.Query(uid)
 		defer rows.Close()
-		if err == nil {
-			for rows.Next() {
-				var (
-					tiketid int
-					client  string
-				)
-				err = rows.Scan(&tiketid, &client)
-				if err == nil {
-					t = append(t, Tiket{ID: tiketid, Client: client})
-					log.Println("Db LoadTikets", uid, tiketid, client)
-				}
-			}
-		} else {
+		if err != nil {
 			log.Println("Db LoadTikets", uid, err.Error())
 		}
+		for rows.Next() {
+			var (
+				tiketid uint32
+				client  string
+			)
+			err = rows.Scan(&tiketid, &client)
+			if err == nil {
+				t = append(t, Tiket{ID: tiketid, Client: client})
+				log.Println("Db LoadTikets", uid, tiketid, client)
+			} else {
+				log.Println("Db LoadTikets", uid, err.Error())
+			}
+		}
+
 	}
 	return t
 }
 
 // LoadUsers загружает с базы авторизованные учетки
-func (d *Db) LoadUsers() *map[int64]int {
+func (d *Db) LoadUsers() *map[int64]uint16 {
 	log.Println("Db LoadUsers")
-	res := make(map[int64]int)
+	res := make(map[int64]uint16)
 	var chatid int64
-	var uid int
+	var uid uint16
 	rows, err := d.mysql.Query(`SELECT id,chat_id FROM mms_adm_users WHERE chat_id != 0 AND status = 0`)
-	if err == nil {
-		for rows.Next() {
-			rows.Scan(&uid, &chatid)
-			res[chatid] = uid
-			log.Println("Db LoadUsers", uid, chatid)
-		}
-	} else {
+	defer rows.Close()
+	if err != nil {
 		log.Println("Db LoadUsers", err.Error())
+	}
+	for rows.Next() {
+		rows.Scan(&uid, &chatid)
+		res[chatid] = uid
+		log.Println("Db LoadUsers", uid, chatid)
 	}
 	log.Println("Db LoadUsers", res)
 	return &res
@@ -129,11 +139,13 @@ func (d *Db) LoadSupers() []int64 {
 	res := make([]int64, 0)
 	var chatid int64
 	rows, err := d.mysql.Query(`SELECT chat_id FROM mms_adm_users WHERE chat_id != 0 AND status = 0 AND gid != 12`)
-	if err == nil {
-		for rows.Next() {
-			rows.Scan(&chatid)
-			res = append(res, chatid)
-		}
+	defer rows.Close()
+	if err != nil {
+		log.Println("Db LoadSupers", err.Error())
+	}
+	for rows.Next() {
+		rows.Scan(&chatid)
+		res = append(res, chatid)
 	}
 	return res
 }
