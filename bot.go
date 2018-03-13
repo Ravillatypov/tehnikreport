@@ -65,8 +65,8 @@ func BotInit(token, datadase string) (*ChatBot, error) {
 func (ch *ChatBot) Help(m *tgbotapi.Message) {
 	log.Println("Help", *m)
 	msg := tgbotapi.NewMessage(m.Chat.ID, `Бот предназначен для сбора отчетов о выполненных работах.
-для отправки отчетов необходимо авторизваться с помощью комманды /login /l
-после авторизации можно будет смотреть свои незакрытые заявки коммандой /tiket /t
+для отправки отчетов необходимо авторизваться с помощью комманд /login или сокращенно /l
+после авторизации можно будет смотреть свои незакрытые заявки коммандами /tiket или /t
 под каждой заявкой есть кнопочка, с помощю которой можно отправить отчет
 комманды /super и /s для авторизации как руководитель или как координатор.
 /cancel или /c отменяет заполнение отчета.
@@ -411,6 +411,7 @@ func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 func (ch *ChatBot) Cancel(chatid int64) {
 	log.Println("Cancel", chatid)
 	ch.state.Clear(chatid)
+	ch.bot.Send(tgbotapi.NewMessage(chatid, "заполнение отчета отменено"))
 }
 
 // Soft обрабатывает софтовые работы
