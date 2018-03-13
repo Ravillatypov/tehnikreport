@@ -107,11 +107,11 @@ var (
 
 // ChatState тип для хранения состояния чата
 type ChatState struct {
-	sync.RWMutex                  // нужна синхронизация для мапов
-	reports      map[int64]Report // сохраняем для формировании  отчета
-	action       map[int64]string // что ждем от пользователя, какую инфу
-	users        map[int64]uint16 // сопоставление chat_id и внутеннего id
-	super        []int64          // чаты руководителей и коорднаторов
+	sync.RWMutex                   // нужна синхронизация для мапов
+	reports      map[int64]*Report // сохраняем для формировании  отчета
+	action       map[int64]string  // что ждем от пользователя, какую инфу
+	users        map[int64]uint16  // сопоставление chat_id и внутеннего id
+	super        []int64           // чаты руководителей и коорднаторов
 }
 
 // GetAction используется для получения action
@@ -127,10 +127,7 @@ func (c *ChatState) SetAction(u int64, ac string) {
 	log.Println("SetAction", u, ac)
 	c.Lock()
 	defer c.Unlock()
-	a := c.action
-	log.Println(a)
-	a[u] = ac
-	c.action = a
+	c.action[u] = ac
 }
 
 // GetReport формирует отчет
@@ -138,9 +135,7 @@ func (c *ChatState) GetReport(u int64) string {
 	log.Println("GetReport", u)
 	c.RLock()
 	defer c.RUnlock()
-	r := c.reports[u]
-	log.Println(r)
-	return r.MakeReport()
+	return c.reports[u].MakeReport()
 }
 
 // AddService добавляет выполненную работу
@@ -148,14 +143,12 @@ func (c *ChatState) AddService(u int64, s *Service) {
 	log.Println("AddService", u, *s)
 	c.Lock()
 	defer c.Unlock()
-	rep := c.reports[u]
-	for _, v := range rep.Services {
+	for _, v := range c.reports[u].Services {
 		if v == *s {
 			return
 		}
 	}
-	rep.Services = append(rep.Services, (*s))
-	c.reports[u] = rep
+	c.reports[u].Services = append(c.reports[u].Services, (*s))
 }
 
 // AddMaterials добавляет материал
@@ -163,10 +156,9 @@ func (c *ChatState) AddMaterials(u int64, m *Material) {
 	log.Println("AddMaterials", u, *m)
 	c.Lock()
 	defer c.Unlock()
-	rep := c.reports[u]
 	newmat := make([]Material, 0)
 	newmat = append(newmat, *m)
-	for _, v := range rep.Materials {
+	for _, v := range c.reports[u].Materials {
 		if v == *m {
 			return
 		}
@@ -175,8 +167,7 @@ func (c *ChatState) AddMaterials(u int64, m *Material) {
 		}
 		newmat = append(newmat, v)
 	}
-	rep.Materials = newmat
-	c.reports[u] = rep
+	c.reports[u].Materials = newmat
 }
 
 // SetMaterialsCount указывает количество материала
@@ -184,17 +175,15 @@ func (c *ChatState) SetMaterialsCount(u int64, count uint8) {
 	log.Println("SetMaterialCount", u, count)
 	c.Lock()
 	defer c.Unlock()
-	rep := c.reports[u]
 	mat := make([]Material, 0)
-	for _, v := range rep.Materials {
+	for _, v := range c.reports[u].Materials {
 		if v.Count == 0 {
 			v.Count = count
 			log.Printf("SetCount %v", mat)
 		}
 		mat = append(mat, v)
 	}
-	rep.Materials = mat
-	c.reports[u] = rep
+	c.reports[u].Materials = mat
 }
 
 // SetStatus устанавливает статус выполнения заявки
@@ -202,9 +191,7 @@ func (c *ChatState) SetStatus(u int64, s bool) {
 	log.Println("SetStatus", u, s)
 	c.Lock()
 	defer c.Unlock()
-	rep := c.reports[u]
-	rep.Status = s
-	c.reports[u] = rep
+	c.reports[u].Status = s
 }
 
 // GetStatus получает статус выполнения заявки
@@ -212,8 +199,7 @@ func (c *ChatState) GetStatus(u int64) bool {
 	log.Println("GetStatus", u)
 	c.RLock()
 	defer c.RUnlock()
-	rep := c.reports[u]
-	return rep.Status
+	return c.reports[u].Status
 }
 
 // MakeReport создает отчет координатору
@@ -229,7 +215,7 @@ func (r *Report) MakeReport() string {
 			комментарии: %s`, r.ID, r.Comment)
 	}
 	var allservises string
-	materials := "Материалы: "
+	materials := "Материалы: \n"
 	for _, i := range r.Services {
 		allservises += i.Print()
 	}
@@ -239,16 +225,16 @@ func (r *Report) MakeReport() string {
 	for _, m := range r.Materials {
 		materials += m.Print()
 	}
-	if materials == "Материалы: " {
+	if materials == "Материалы: \n" {
 		materials = ""
 	}
 	if r.Amount >= 1000 {
 		return fmt.Sprintf(ReportForm, r.ID, bso, r.Amount,
-			"Выезд;\n"+allservises,
+			"\nВыезд;\n"+allservises,
 			materials, r.Comment)
 	}
 	return fmt.Sprintf(ReportForm, r.ID, bso, r.Amount,
-		"Выезд;\nДиагностика;\n"+allservises,
+		"\nВыезд;\nДиагностика;\n"+allservises,
 		materials, r.Comment)
 
 }
@@ -301,59 +287,50 @@ func (c *ChatState) IsCable(chatid int64) bool {
 func (c *ChatState) AddReport(chatid int64, reportid uint32) {
 	c.Lock()
 	defer c.Unlock()
-	c.reports[chatid] = Report{ID: reportid}
+	c.reports[chatid] = &Report{ID: reportid}
 }
 
 // SetBso установливаем номер БСО
 func (c *ChatState) SetBso(chatid int64, bso uint32) {
 	c.Lock()
 	defer c.Unlock()
-	r := c.reports[chatid]
-	r.BSO = bso
-	c.reports[chatid] = r
+	c.reports[chatid].BSO = bso
 }
 
 // SetAmount установливаем сумму услуг
 func (c *ChatState) SetAmount(chatid int64, amount uint16) {
 	c.Lock()
 	defer c.Unlock()
-	r := c.reports[chatid]
-	r.Amount = amount
-	c.reports[chatid] = r
+	c.reports[chatid].Amount = amount
 }
 
 // Clear очищает отчет, состояние чата
 func (c *ChatState) Clear(chatid int64) {
 	c.Lock()
 	defer c.Unlock()
-	c.reports[chatid] = Report{}
-	c.SetAction(chatid, "")
+	delete(c.reports, chatid)
+	delete(c.action, chatid)
 }
 
 // SetComment меняем коммент
 func (c *ChatState) SetComment(chatid int64, comment string) {
 	c.Lock()
 	defer c.Unlock()
-	r := c.reports[chatid]
-	r.Comment = comment
-	c.reports[chatid] = r
+	c.reports[chatid].Comment = comment
 }
 
 // SetDopServices меняем коммент
 func (c *ChatState) SetDopServices(chatid int64, services string) {
 	c.Lock()
 	defer c.Unlock()
-	r := c.reports[chatid]
-	r.DopServices = services
-	c.reports[chatid] = r
+	c.reports[chatid].DopServices = services
 }
 
 // MakeReport создает отчет для указанного чата
 func (c *ChatState) MakeReport(chatid int64) string {
 	c.RLock()
 	defer c.RUnlock()
-	r := c.reports[chatid]
-	return r.MakeReport()
+	return c.reports[chatid].MakeReport()
 }
 
 // LoadUsers меняем коммент

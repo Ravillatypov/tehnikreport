@@ -42,7 +42,7 @@ func BotInit(token, datadase string) (*ChatBot, error) {
 		return new(ChatBot), err
 	}
 	s := &ChatState{
-		reports: make(map[int64]Report),
+		reports: make(map[int64]*Report),
 		super:   make([]int64, 0),
 		action:  make(map[int64]string),
 		users:   make(map[int64]uint16),
@@ -197,7 +197,7 @@ func (ch *ChatBot) Super(m *tgbotapi.Message) {
 			msg.Text = "Номер телефона слишком короткий"
 			return
 		}
-		if stat, _ := ch.db.Login(m.Contact.PhoneNumber, m.Chat.ID); stat {
+		if stat, _ := ch.db.SuperLogin(m.Contact.PhoneNumber, m.Chat.ID); stat {
 			msg.Text = "Аутентификация пройдена успешно"
 			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 			ch.state.AddSuper(m.Chat.ID)

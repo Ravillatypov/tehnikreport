@@ -86,6 +86,43 @@ func (d *Db) Login(phone string, ChatID int64) (bool, uint16) {
 	return false, 0
 }
 
+// SuperLogin функция для авторизации техников
+// авторизация по номеру телефона(без отправки смс)
+func (d *Db) SuperLogin(phone string, ChatID int64) (bool, uint16) {
+	log.Println("DB Login", phone, ChatID)
+	ln := strings.Count(phone, "")
+	if ln < 11 {
+		return false, 0
+	}
+	phone = phone[ln-11:]
+	status := 55
+	var id uint16
+	rows, err := d.mysql.Query("SELECT id,status FROM mms_adm_users WHERE gid != 12 AND phone_number LIKE ? LIMIT 1")
+	defer rows.Close()
+	if err != nil {
+		log.Println(err.Error())
+		return false, 0
+	}
+	rows.Next()
+	err = rows.Scan(&id, &status)
+	if err != nil {
+		log.Println("DB Login", err.Error())
+		return false, 0
+	}
+	log.Printf("id = %d, status = %d", id, status)
+	if status == 0 && id != 0 {
+		rs, err := d.uUserChatid.Exec(ChatID, id)
+		if err != nil {
+			log.Println(err.Error())
+			return true, id
+		}
+		affect, err := rs.RowsAffected()
+		log.Printf("updated %d rows", affect)
+		return true, id
+	}
+	return false, 0
+}
+
 // LoadTikets возвращает список незакрытых заявок
 func (d *Db) LoadTikets(uid uint16) []Tiket {
 	log.Println("Db LoadTikets", uid)
