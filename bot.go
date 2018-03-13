@@ -148,6 +148,7 @@ func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 			msg.Text = t.Client
 			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
 			ch.bot.Send(msg)
+			return
 		}
 	}
 	ch.bot.Send(msg)
@@ -187,7 +188,7 @@ func (ch *ChatBot) Super(m *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
 	if m.IsCommand() {
 		msg.Text = "отправьте свой номер для авторизации"
-		msg.ReplyMarkup = tgbotapi.NewKeyboardButtonContact("мой номер")
+		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButtonContact("мой номер")))
 		ch.state.SetAction(m.Chat.ID, "super")
 	}
 	if m.Contact != nil {
