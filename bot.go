@@ -148,8 +148,8 @@ func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 			msg.Text = t.Client
 			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
 			ch.bot.Send(msg)
-			return
 		}
+		return
 	}
 	ch.bot.Send(msg)
 }
