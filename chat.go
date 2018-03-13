@@ -100,7 +100,6 @@ var (
 	номер БСО: %s
 	сумма: %d
 	выполненные работы: %s
-	%s
 	комментарии: %s
 	`
 )
@@ -215,27 +214,25 @@ func (r *Report) MakeReport() string {
 			комментарии: %s`, r.ID, r.Comment)
 	}
 	var allservises string
-	materials := "Материалы: \n"
+	materials := "\nМатериалы: \n"
 	for _, i := range r.Services {
 		allservises += i.Print()
 	}
 	if r.DopServices != "" {
-		allservises += "\n" + r.DopServices
+		allservises += "\nДополнительные услуги:\n" + r.DopServices
 	}
 	for _, m := range r.Materials {
 		materials += m.Print()
 	}
-	if materials == "Материалы: \n" {
+	if materials == "\nМатериалы: \n" {
 		materials = ""
 	}
 	if r.Amount >= 1000 {
 		return fmt.Sprintf(ReportForm, r.ID, bso, r.Amount,
-			"\nВыезд;\n"+allservises,
-			materials, r.Comment)
+			"\nВыезд;\n"+allservises+materials, r.Comment)
 	}
 	return fmt.Sprintf(ReportForm, r.ID, bso, r.Amount,
-		"\nВыезд;\nДиагностика;\n"+allservises,
-		materials, r.Comment)
+		"\nВыезд;\nДиагностика;\n"+allservises+materials, r.Comment)
 
 }
 
