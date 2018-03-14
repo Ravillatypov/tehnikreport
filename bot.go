@@ -103,6 +103,8 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 			go ch.Router(u.CallbackQuery)
 		case "dopservices":
 			go ch.DopServices(u)
+		case "send":
+			go ch.Send(u.CallbackQuery)
 		default:
 			go ch.NewReport(u.CallbackQuery)
 		}
@@ -391,6 +393,28 @@ func (ch *ChatBot) Amount(m *tgbotapi.Message) {
 
 }
 
+// Send отправка отчета
+func (ch *ChatBot) Send(cal *tgbotapi.CallbackQuery) {
+	ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
+	switch cal.Data {
+	case "true":
+		log.Println(ch.state.super)
+		rep := ch.state.MakeReport(cal.Message.Chat.ID)
+		for _, chat := range ch.state.super {
+			msg := tgbotapi.NewMessage(chat, rep)
+			ch.bot.Send(msg)
+		}
+		msg := tgbotapi.NewMessage(-300011805, rep)
+		ch.bot.Send(msg)
+		ch.bot.Send(tgbotapi.NewMessage(cal.Message.Chat.ID, "отчет отправлен"))
+		ch.state.Clear(cal.Message.Chat.ID)
+
+	case "false":
+		ch.state.Clear(cal.Message.Chat.ID)
+		ch.Tiket(cal.Message)
+	}
+}
+
 // Comment последний рубеж, добавляет комментарии пользователя и отправляет координатору
 func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 	log.Println("Comment", *m)
@@ -398,20 +422,24 @@ func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 	rep := ch.state.MakeReport(m.Chat.ID)
 	msg := tgbotapi.NewMessage(m.Chat.ID, rep)
 	ch.bot.Send(msg)
-	for _, chat := range ch.state.super {
-		msg = tgbotapi.NewMessage(chat, rep)
-		ch.bot.Send(msg)
-	}
-	msg = tgbotapi.NewMessage(-300011805, rep)
+	msg.Text = "отправить отчет?"
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("да", "true"),
+			tgbotapi.NewInlineKeyboardButtonData("нет", "false"),
+		),
+	)
 	ch.bot.Send(msg)
-	ch.state.Clear(m.Chat.ID)
+	ch.state.SetAction(m.Chat.ID, "send")
 }
 
 // Cancel отмена заполнение отчета
 func (ch *ChatBot) Cancel(chatid int64) {
 	log.Println("Cancel", chatid)
 	ch.state.Clear(chatid)
-	ch.bot.Send(tgbotapi.NewMessage(chatid, "заполнение отчета отменено"))
+	msg := tgbotapi.NewMessage(chatid, "заполнение отчета отменено")
+	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+	ch.bot.Send(msg)
 }
 
 // Soft обрабатывает софтовые работы

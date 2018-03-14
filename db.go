@@ -42,7 +42,7 @@ func Initialize(dbconfig string) (*Db, error) {
 	if err != nil {
 		return &Db{}, err
 	}
-	stbid, err := suz.Prepare(`SELECT id,client FROM suz_orders WHERE executor_id = ? AND coordination = 2`)
+	stbid, err := suz.Prepare(`SELECT id,client FROM suz_orders WHERE executor_id = ? AND (coordination = 2 OR coordination = 20)`)
 	if err != nil {
 		return &Db{}, err
 	}
@@ -97,7 +97,7 @@ func (d *Db) SuperLogin(phone string, ChatID int64) (bool, uint16) {
 	phone = phone[ln-11:]
 	status := 55
 	var id uint16
-	rows, err := d.mysql.Query("SELECT id,status FROM mms_adm_users WHERE gid != 12 AND phone_number LIKE ? LIMIT 1")
+	rows, err := d.mysql.Query("SELECT id,status FROM mms_adm_users WHERE gid != 12 AND phone_number LIKE ? LIMIT 1", "%"+phone)
 	defer rows.Close()
 	if err != nil {
 		log.Println(err.Error())
