@@ -41,13 +41,15 @@ func BotInit(token, datadase string) (*ChatBot, error) {
 		log.Println(err.Error())
 		return new(ChatBot), err
 	}
+	u, n := d.LoadUsers()
 	s := &ChatState{
-		reports: make(map[int64]*Report),
-		super:   make([]int64, 0),
-		action:  make(map[int64]string),
-		users:   make(map[int64]uint16),
+		reports: Reportmap{s: make(map[int64]*Report)},
+		super:   d.LoadSupers(),
+		action:  String{s: make(map[int64]string)},
+		phone:   String{s: make(map[int64]string)},
+		name:    String{s: n},
+		users:   Uint16{s: u},
 	}
-	s.LoadUsers(d.LoadUsers())
 	b, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		log.Println(err.Error())
@@ -84,9 +86,12 @@ func (ch *ChatBot) Help(m *tgbotapi.Message) {
 
 // ParseUpdate по состоянию чата пользователя раздает задачи функциям
 func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
+	if u.Message == nil && u.CallbackQuery == nil {
+		return
+	}
 	log.Println("ParseUpdate", *u)
 	if u.CallbackQuery != nil {
-		switch ch.state.GetAction(u.CallbackQuery.Message.Chat.ID) {
+		switch ch.state.action.get(u.CallbackQuery.Message.Chat.ID) {
 		case "status":
 			go ch.Status(u.CallbackQuery)
 		case "services":
@@ -109,36 +114,37 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 			go ch.NewReport(u.CallbackQuery)
 		}
 	}
-	if u.Message != nil && u.Message.IsCommand() {
-		switch u.Message.Command() {
-		case "help", "h", "start":
-			go ch.Help(u.Message)
-		case "tiket", "t":
-			go ch.Tiket(u.Message)
-		case "login", "l":
-			go ch.Login(u.Message)
-		case "cancel", "c":
-			go ch.Cancel(u.Message.Chat.ID)
-		case "super", "s":
-			go ch.Super(u.Message)
-		}
-	}
-	if u.Message != nil && !u.Message.IsCommand() {
-		switch ch.state.GetAction(u.Message.Chat.ID) {
-		case "bso":
-			go ch.Bso(u.Message)
-		case "amount":
-			go ch.Amount(u.Message)
-		case "comment":
-			go ch.Comment(u.Message)
-		case "materials":
-			go ch.Materials(u)
-		case "login":
-			go ch.Login(u.Message)
-		case "super":
-			go ch.Super(u.Message)
-		case "dopservices":
-			go ch.DopServices(u)
+	if u.Message != nil {
+		if u.Message.IsCommand() {
+			switch u.Message.Command() {
+			case "help", "h", "start":
+				go ch.Help(u.Message)
+			case "tiket", "t":
+				go ch.Tiket(u.Message)
+			case "login", "l":
+				go ch.Login(u.Message)
+			case "cancel", "c":
+				go ch.Cancel(u.Message.Chat.ID)
+			case "super", "s":
+				go ch.Super(u.Message)
+			}
+		} else {
+			switch ch.state.action.get(u.Message.Chat.ID) {
+			case "bso":
+				go ch.Bso(u.Message)
+			case "amount":
+				go ch.Amount(u.Message)
+			case "comment":
+				go ch.Comment(u.Message)
+			case "materials":
+				go ch.Materials(u)
+			case "login":
+				go ch.Login(u.Message)
+			case "super":
+				go ch.Super(u.Message)
+			case "dopservices":
+				go ch.DopServices(u)
+			}
 		}
 	}
 }
@@ -147,7 +153,7 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	log.Println("Tiket", *m)
 	msg := tgbotapi.NewMessage(m.Chat.ID, "нет открытых заявок")
-	uid := ch.state.GetUserID(m.Chat.ID)
+	uid := ch.state.users.get(m.Chat.ID)
 	tikets := ch.db.LoadTikets(uid)
 	log.Println("Tiket", uid, tikets)
 	if len(tikets) > 0 {
@@ -166,25 +172,36 @@ func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 func (ch *ChatBot) Login(m *tgbotapi.Message) {
 	log.Println("Login", *m)
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
-	if m.IsCommand() {
+	switch {
+	case m.IsCommand():
+		log.Println("Login is command")
 		msg.Text = "отправьте свой номер для авторизации"
 		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButtonContact("мой номер")))
-		ch.state.SetAction(m.Chat.ID, "login")
-	}
-	if m.Contact != nil {
+		ch.state.action.set(m.Chat.ID, "login")
+	case m.Contact != nil:
+		log.Println("Login is contact", m.Contact.PhoneNumber)
 		ln := strings.Count(m.Contact.PhoneNumber, "")
 		if ln < 11 {
 			msg.Text = "Номер телефона слишком короткий"
+			ch.bot.Send(msg)
 			return
 		}
-		if stat, uid := ch.db.Login(m.Contact.PhoneNumber, m.Chat.ID); stat {
+		ch.state.phone.set(m.Chat.ID, m.Contact.PhoneNumber)
+		msg.Text = "введите пароль"
+		msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+		ch.bot.Send(msg)
+		return
+	case strings.Count(m.Text, "") > 0:
+		log.Println("Login is password", m.Text)
+		log.Println(ch.db)
+		if stat, uid, fio := ch.db.Login(ch.state.phone.get(m.Chat.ID), m.Text, m.Chat.ID); stat {
 			msg.Text = "Аутентификация пройдена успешно"
-			ch.state.SetAction(m.Chat.ID, "")
-			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-			ch.state.AddUser(m.Chat.ID, uid)
+			log.Println(ch.state.action.get(m.Chat.ID))
+			ch.state.action.del(m.Chat.ID)
+			ch.state.users.set(m.Chat.ID, uid)
+			ch.state.name.set(m.Chat.ID, fio)
 		} else {
-			msg.Text = "К сожалению не удалось найти активного пользователя с данным номером"
-			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+			msg.Text = "не правильный номер или пароль"
 		}
 	}
 	ch.bot.Send(msg)
@@ -194,25 +211,29 @@ func (ch *ChatBot) Login(m *tgbotapi.Message) {
 func (ch *ChatBot) Super(m *tgbotapi.Message) {
 	log.Println("Super", *m)
 	msg := tgbotapi.NewMessage(m.Chat.ID, "")
-	if m.IsCommand() {
+	switch {
+	case m.IsCommand():
 		msg.Text = "отправьте свой номер для авторизации"
 		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButtonContact("мой номер")))
-		ch.state.SetAction(m.Chat.ID, "super")
-	}
-	if m.Contact != nil {
+		ch.state.action.set(m.Chat.ID, "super")
+	case m.Contact != nil:
 		ln := strings.Count(m.Contact.PhoneNumber, "")
 		if ln < 11 {
 			msg.Text = "Номер телефона слишком короткий"
 			return
 		}
-		if stat, _ := ch.db.SuperLogin(m.Contact.PhoneNumber, m.Chat.ID); stat {
+		ch.state.phone.set(m.Chat.ID, m.Contact.PhoneNumber)
+		msg.Text = "введите пароль"
+		msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+		ch.bot.Send(msg)
+		return
+	case strings.Count(m.Text, "") > 0:
+		if stat, _ := ch.db.SuperLogin(ch.state.phone.get(m.Chat.ID), m.Text, m.Chat.ID); stat {
 			msg.Text = "Аутентификация пройдена успешно"
-			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 			ch.state.AddSuper(m.Chat.ID)
 			ch.state.Clear(m.Chat.ID)
 		} else {
-			msg.Text = "К сожалению не удалось найти активного пользователя с данным номером"
-			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+			msg.Text = "не правильный номер или пароль"
 			ch.state.Clear(m.Chat.ID)
 		}
 	}
@@ -228,8 +249,8 @@ func (ch *ChatBot) NewReport(cal *tgbotapi.CallbackQuery) {
 		if err != nil {
 			return
 		}
-		ch.state.SetAction(cal.Message.Chat.ID, "status")
-		ch.state.AddReport(cal.Message.Chat.ID, uint32(id))
+		ch.state.action.set(cal.Message.Chat.ID, "status")
+		ch.state.reports.set(cal.Message.Chat.ID, &Report{ID: uint32(id)})
 		ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
 		msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "Заявка выполнена?")
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(
@@ -246,12 +267,12 @@ func (ch *ChatBot) Status(cal *tgbotapi.CallbackQuery) {
 	msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "")
 	switch cal.Data {
 	case "true":
-		ch.state.SetStatus(cal.Message.Chat.ID, true)
-		ch.state.SetAction(cal.Message.Chat.ID, "bso")
+		ch.state.reports.get(cal.Message.Chat.ID).Status = true
+		ch.state.action.set(cal.Message.Chat.ID, "bso")
 		msg.Text = "какой номер БСО?"
 	case "false":
-		ch.state.SetStatus(cal.Message.Chat.ID, false)
-		ch.state.SetAction(cal.Message.Chat.ID, "comment")
+		ch.state.reports.get(cal.Message.Chat.ID).Status = false
+		ch.state.action.set(cal.Message.Chat.ID, "comment")
 		msg.Text = "Ваши комметнарии к заявке"
 	default:
 		return
@@ -272,11 +293,11 @@ func (ch *ChatBot) DopServices(u *tgbotapi.Update) {
 			msg.Text = "напишите список оказанных услуг"
 		case "false":
 			if ch.state.IsCable(u.CallbackQuery.Message.Chat.ID) {
-				ch.state.SetAction(u.CallbackQuery.Message.Chat.ID, "materials")
+				ch.state.action.set(u.CallbackQuery.Message.Chat.ID, "materials")
 				msg.Text = "какие материалы были использованы"
 				msg.ReplyMarkup = ch.Keyboards[4]
 			} else {
-				ch.state.SetAction(u.CallbackQuery.Message.Chat.ID, "comment")
+				ch.state.action.set(u.CallbackQuery.Message.Chat.ID, "comment")
 				msg.Text = "ваши комментарии к заявке"
 			}
 		default:
@@ -291,13 +312,13 @@ func (ch *ChatBot) DopServices(u *tgbotapi.Update) {
 	}
 	if u.Message != nil {
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, "")
-		ch.state.SetDopServices(u.Message.Chat.ID, u.Message.Text)
+		ch.state.reports.get(u.Message.Chat.ID).DopServices = u.Message.Text
 		if ch.state.IsCable(u.Message.Chat.ID) {
-			ch.state.SetAction(u.Message.Chat.ID, "materials")
+			ch.state.action.set(u.Message.Chat.ID, "materials")
 			msg.Text = "какие материалы были использованы"
 			msg.ReplyMarkup = ch.Keyboards[4]
 		} else {
-			ch.state.SetAction(u.Message.Chat.ID, "comment")
+			ch.state.action.set(u.Message.Chat.ID, "comment")
 			msg.Text = "ваши комментарии к заявке"
 		}
 		ch.bot.Send(msg)
@@ -308,30 +329,30 @@ func (ch *ChatBot) DopServices(u *tgbotapi.Update) {
 // Services получает списой выполненных работ
 func (ch *ChatBot) Services(cal *tgbotapi.CallbackQuery) {
 	log.Println("Services", *cal)
-	if ch.state.GetAction(cal.Message.Chat.ID) != "services" {
+	if ch.state.action.get(cal.Message.Chat.ID) != "services" {
 		return
 	}
 	msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "выберите выполненные работы (множественный выбор)")
 	ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
 	switch cal.Data {
 	case "0":
-		ch.state.SetAction(cal.Message.Chat.ID, "soft")
+		ch.state.action.set(cal.Message.Chat.ID, "soft")
 		msg.ReplyMarkup = ch.Keyboards[0]
 	case "1":
-		ch.state.SetAction(cal.Message.Chat.ID, "cable")
+		ch.state.action.set(cal.Message.Chat.ID, "cable")
 		msg.ReplyMarkup = ch.Keyboards[1]
 	case "2":
-		ch.state.SetAction(cal.Message.Chat.ID, "tv")
+		ch.state.action.set(cal.Message.Chat.ID, "tv")
 		msg.ReplyMarkup = ch.Keyboards[2]
 	case "3":
-		ch.state.SetAction(cal.Message.Chat.ID, "router")
+		ch.state.action.set(cal.Message.Chat.ID, "router")
 		msg.ReplyMarkup = ch.Keyboards[3]
 	case "return":
-		ch.state.SetAction(cal.Message.Chat.ID, "dopservices")
+		ch.state.action.set(cal.Message.Chat.ID, "dopservices")
 		ch.DopServices(&tgbotapi.Update{CallbackQuery: cal})
 		return
 	default:
-		//ch.state.SetAction(cal.Message.Chat.ID, "soft")
+		//ch.state.action.set(cal.Message.Chat.ID, "soft")
 		msg.ReplyMarkup = ServiceTypeKeyb
 	}
 	ch.bot.Send(msg)
@@ -349,7 +370,7 @@ func (ch *ChatBot) Materials(u *tgbotapi.Update) {
 		}
 		if u.CallbackQuery.Data == "remove" {
 			ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: u.CallbackQuery.Message.Chat.ID, MessageID: u.CallbackQuery.Message.MessageID})
-			ch.state.SetAction(u.CallbackQuery.Message.Chat.ID, "comment")
+			ch.state.action.set(u.CallbackQuery.Message.Chat.ID, "comment")
 			msg := tgbotapi.NewMessage(u.CallbackQuery.Message.Chat.ID, "Ваши комментари к заявке")
 			ch.bot.Send(msg)
 		}
@@ -372,8 +393,8 @@ func (ch *ChatBot) Bso(m *tgbotapi.Message) {
 		ch.bot.Send(msg)
 		return
 	}
-	ch.state.SetBso(m.Chat.ID, uint32(bso))
-	ch.state.SetAction(m.Chat.ID, "amount")
+	ch.state.reports.get(m.Chat.ID).BSO = uint32(bso)
+	ch.state.action.set(m.Chat.ID, "amount")
 	msg.Text = "Сумма оказанных услуг"
 	ch.bot.Send(msg)
 }
@@ -388,8 +409,8 @@ func (ch *ChatBot) Amount(m *tgbotapi.Message) {
 		ch.bot.Send(msg)
 		return
 	}
-	ch.state.SetAmount(m.Chat.ID, uint16(amount))
-	ch.state.SetAction(m.Chat.ID, "services")
+	ch.state.reports.get(m.Chat.ID).Amount = uint16(amount)
+	ch.state.action.set(m.Chat.ID, "services")
 	ch.Services(&tgbotapi.CallbackQuery{From: m.From, Message: m})
 
 }
@@ -400,12 +421,15 @@ func (ch *ChatBot) Send(cal *tgbotapi.CallbackQuery) {
 	switch cal.Data {
 	case "true":
 		log.Println(ch.state.super)
-		rep := ch.state.MakeReport(cal.Message.Chat.ID)
+		txt := fmt.Sprintf(ForCoordirantors,
+			ch.state.name.get(cal.Message.Chat.ID),
+			ch.state.reports.get(cal.Message.Chat.ID).MakeReport())
+		log.Println("Send super: ", ch.state.super)
 		for _, chat := range ch.state.super {
-			msg := tgbotapi.NewMessage(chat, rep)
+			msg := tgbotapi.NewMessage(chat, txt)
 			ch.bot.Send(msg)
 		}
-		msg := tgbotapi.NewMessage(-300011805, rep)
+		msg := tgbotapi.NewMessage(-300011805, txt)
 		ch.bot.Send(msg)
 		ch.bot.Send(tgbotapi.NewMessage(cal.Message.Chat.ID, "отчет отправлен"))
 		ch.state.Clear(cal.Message.Chat.ID)
@@ -419,8 +443,8 @@ func (ch *ChatBot) Send(cal *tgbotapi.CallbackQuery) {
 // Comment последний рубеж, добавляет комментарии пользователя и отправляет координатору
 func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 	log.Println("Comment", *m)
-	ch.state.SetComment(m.Chat.ID, m.Text)
-	rep := ch.state.MakeReport(m.Chat.ID)
+	ch.state.reports.get(m.Chat.ID).Comment = m.Text
+	rep := ch.state.reports.get(m.Chat.ID).MakeReport()
 	msg := tgbotapi.NewMessage(m.Chat.ID, rep)
 	ch.bot.Send(msg)
 	msg.Text = "отправить отчет?"
@@ -431,7 +455,7 @@ func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 		),
 	)
 	ch.bot.Send(msg)
-	ch.state.SetAction(m.Chat.ID, "send")
+	ch.state.action.set(m.Chat.ID, "send")
 }
 
 // Cancel отмена заполнение отчета
@@ -451,7 +475,7 @@ func (ch *ChatBot) Soft(cal *tgbotapi.CallbackQuery) {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 0, Job: uint8(id)})
 	}
 	if cal.Data == "remove" {
-		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.state.action.set(cal.Message.Chat.ID, "services")
 		ch.Services(cal)
 	}
 }
@@ -464,7 +488,7 @@ func (ch *ChatBot) Cable(cal *tgbotapi.CallbackQuery) {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 1, Job: uint8(id)})
 	}
 	if cal.Data == "remove" {
-		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.state.action.set(cal.Message.Chat.ID, "services")
 		ch.Services(cal)
 	}
 }
@@ -477,7 +501,7 @@ func (ch *ChatBot) TV(cal *tgbotapi.CallbackQuery) {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 2, Job: uint8(id)})
 	}
 	if cal.Data == "remove" {
-		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.state.action.set(cal.Message.Chat.ID, "services")
 		ch.Services(cal)
 	}
 }
@@ -490,7 +514,7 @@ func (ch *ChatBot) Router(cal *tgbotapi.CallbackQuery) {
 		ch.state.AddService(cal.Message.Chat.ID, &Service{Type: 3, Job: uint8(id)})
 	}
 	if cal.Data == "remove" {
-		ch.state.SetAction(cal.Message.Chat.ID, "services")
+		ch.state.action.set(cal.Message.Chat.ID, "services")
 		ch.Services(cal)
 	}
 }
