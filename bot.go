@@ -152,8 +152,9 @@ func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	log.Println("Tiket", uid, tikets)
 	if len(tikets) > 0 {
 		for _, t := range tikets {
-			msg.Text = t.Client
-			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
+			msg.Text = fmt.Sprintf("клиент: %s\nадрес: %s", t.Client, t.Address)
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("отчет", fmt.Sprintf("report%d", t.ID))))
 			ch.bot.Send(msg)
 		}
 		return

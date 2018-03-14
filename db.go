@@ -20,8 +20,8 @@ type Db struct {
 
 // Tiket тип для хранения заявки
 type Tiket struct {
-	ID     uint32
-	Client string
+	ID              uint32
+	Client, Address string
 }
 
 // Initialize функция для инициализации
@@ -42,7 +42,7 @@ func Initialize(dbconfig string) (*Db, error) {
 	if err != nil {
 		return &Db{}, err
 	}
-	stbid, err := suz.Prepare(`SELECT id,client FROM suz_orders WHERE executor_id = ? AND (coordination = 2 OR coordination = 20)`)
+	stbid, err := suz.Prepare(`SELECT id,client,address FROM suz_orders WHERE executor_id = ? AND (coordination = 2 OR coordination = 20)`)
 	if err != nil {
 		return &Db{}, err
 	}
@@ -135,13 +135,13 @@ func (d *Db) LoadTikets(uid uint16) []Tiket {
 		}
 		for rows.Next() {
 			var (
-				tiketid uint32
-				client  string
+				tiketid         uint32
+				client, address string
 			)
-			err = rows.Scan(&tiketid, &client)
+			err = rows.Scan(&tiketid, &client, &address)
 			if err == nil {
-				t = append(t, Tiket{ID: tiketid, Client: client})
-				log.Println("Db LoadTikets", uid, tiketid, client)
+				t = append(t, Tiket{ID: tiketid, Client: client, Address: address})
+				log.Println("Db LoadTikets", uid, tiketid, client, address)
 			} else {
 				log.Println("Db LoadTikets", uid, err.Error())
 			}
