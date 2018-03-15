@@ -56,30 +56,6 @@ func (s *Uint16) get(id int64) uint16 {
 	return s.s[id]
 }
 
-// Reportmap map[int64]*Report
-type Reportmap struct {
-	sync.RWMutex
-	s map[int64]*Report
-}
-
-func (s *Reportmap) set(id int64, val *Report) {
-	s.Lock()
-	defer s.Unlock()
-	s.s[id] = val
-}
-
-func (s *Reportmap) del(id int64) {
-	s.Lock()
-	defer s.Unlock()
-	delete(s.s, id)
-}
-
-func (s *Reportmap) get(id int64) *Report {
-	s.RLock()
-	defer s.RUnlock()
-	return s.s[id]
-}
-
 // Report хранит введенные данные техником
 // после заполнения необходимых полей, отчет отправляется координатору,
 // в группу и пользователям авторизованных как super
@@ -181,12 +157,12 @@ var (
 
 // ChatState тип для хранения состояния чата
 type ChatState struct {
-	reports Reportmap // сохраняем для формировании  отчета
-	action  String    // что ждем от пользователя, какую инфу
-	phone   String    // номер телефона
-	name    String    // ФИО в системе
-	users   Uint16    // сопоставление chat_id и внутеннего id
-	super   []int64   // чаты руководителей и коорднаторов
+	reports map[int64]*Report // сохраняем для формировании  отчета
+	action  String            // что ждем от пользователя, какую инфу
+	phone   String            // номер телефона
+	name    String            // ФИО в системе
+	users   Uint16            // сопоставление chat_id и внутеннего id
+	super   []int64           // чаты руководителей и коорднаторов
 }
 
 // AddService добавляет выполненную работу

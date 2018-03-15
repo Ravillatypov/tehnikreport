@@ -43,7 +43,7 @@ func BotInit(token, datadase string) (*ChatBot, error) {
 	}
 	u, n := d.LoadUsers()
 	s := &ChatState{
-		reports: Reportmap{s: make(map[int64]*Report)},
+		reports: make(map[int64]*Report),
 		super:   d.LoadSupers(),
 		action:  String{s: make(map[int64]string)},
 		phone:   String{s: make(map[int64]string)},
@@ -253,7 +253,7 @@ func (ch *ChatBot) NewReport(cal *tgbotapi.CallbackQuery) {
 			return
 		}
 		ch.state.action.set(cal.Message.Chat.ID, "status")
-		ch.state.reports.set(cal.Message.Chat.ID, &Report{ID: uint32(id)})
+		ch.state.reports[cal.Message.Chat.ID] = &Report{ID: uint32(id)}
 		ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
 		msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "Заявка выполнена?")
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(
@@ -270,11 +270,11 @@ func (ch *ChatBot) Status(cal *tgbotapi.CallbackQuery) {
 	msg := tgbotapi.NewMessage(cal.Message.Chat.ID, "")
 	switch cal.Data {
 	case "true":
-		ch.state.reports.get(cal.Message.Chat.ID).Status = true
+		ch.state.reports[cal.Message.Chat.ID].Status = true
 		ch.state.action.set(cal.Message.Chat.ID, "bso")
 		msg.Text = "какой номер БСО?"
 	case "false":
-		ch.state.reports.get(cal.Message.Chat.ID).Status = false
+		ch.state.reports[cal.Message.Chat.ID].Status = false
 		ch.state.action.set(cal.Message.Chat.ID, "comment")
 		msg.Text = "Ваши комметнарии к заявке"
 	default:
@@ -315,7 +315,7 @@ func (ch *ChatBot) DopServices(u *tgbotapi.Update) {
 	}
 	if u.Message != nil {
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, "")
-		ch.state.reports.get(u.Message.Chat.ID).DopServices = u.Message.Text
+		ch.state.reports[u.Message.Chat.ID].DopServices = u.Message.Text
 		if ch.state.IsCable(u.Message.Chat.ID) {
 			ch.state.action.set(u.Message.Chat.ID, "materials")
 			msg.Text = "какие материалы были использованы"
@@ -396,7 +396,7 @@ func (ch *ChatBot) Bso(m *tgbotapi.Message) {
 		ch.Sendmsg(msg)
 		return
 	}
-	ch.state.reports.get(m.Chat.ID).BSO = uint32(bso)
+	ch.state.reports[m.Chat.ID].BSO = uint32(bso)
 	ch.state.action.set(m.Chat.ID, "amount")
 	msg.Text = "Сумма оказанных услуг"
 	ch.Sendmsg(msg)
@@ -412,7 +412,7 @@ func (ch *ChatBot) Amount(m *tgbotapi.Message) {
 		ch.Sendmsg(msg)
 		return
 	}
-	ch.state.reports.get(m.Chat.ID).Amount = uint16(amount)
+	ch.state.reports[m.Chat.ID].Amount = uint16(amount)
 	ch.state.action.set(m.Chat.ID, "services")
 	ch.Services(&tgbotapi.CallbackQuery{From: m.From, Message: m})
 
@@ -426,12 +426,12 @@ func (ch *ChatBot) Send(cal *tgbotapi.CallbackQuery) {
 		log.Println(ch.state.super)
 		txt := fmt.Sprintf(ForCoordirantors,
 			ch.state.name.get(cal.Message.Chat.ID),
-			ch.state.reports.get(cal.Message.Chat.ID).MakeReport())
+			ch.state.reports[cal.Message.Chat.ID].MakeReport())
 		log.Println("Send super: ", ch.state.super)
 		kb := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonURL("перейти к заявке",
-					fmt.Sprintf("http://suz.iqvision.pro/view/orders/%d", ch.state.reports.get(cal.Message.Chat.ID).ID)),
+					fmt.Sprintf("http://suz.iqvision.pro/view/orders/%d", ch.state.reports[cal.Message.Chat.ID].ID)),
 			),
 		)
 		for _, chat := range ch.state.super {
@@ -454,8 +454,8 @@ func (ch *ChatBot) Send(cal *tgbotapi.CallbackQuery) {
 // Comment последний рубеж, добавляет комментарии пользователя и отправляет координатору
 func (ch *ChatBot) Comment(m *tgbotapi.Message) {
 	log.Println("Comment", *m)
-	ch.state.reports.get(m.Chat.ID).Comment = m.Text
-	rep := ch.state.reports.get(m.Chat.ID).MakeReport()
+	ch.state.reports[m.Chat.ID].Comment = m.Text
+	rep := ch.state.reports[m.Chat.ID].MakeReport()
 	msg := tgbotapi.NewMessage(m.Chat.ID, rep)
 	ch.Sendmsg(msg)
 	msg.Text = "отправить отчет?"
@@ -545,6 +545,9 @@ func (ch *ChatBot) Run() {
 	}
 
 	for update := range updates {
+		if update.Message == nil && update.CallbackQuery == nil {
+			continue
+		}
 		log.Println(update)
 		go ch.ParseUpdate(&update)
 	}
