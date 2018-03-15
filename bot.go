@@ -546,12 +546,6 @@ func (ch *ChatBot) Run() {
 
 	for update := range updates {
 		log.Println(update)
-		if update.Message == nil {
-			continue
-		}
-		if update.CallbackQuery == nil {
-			continue
-		}
 		go ch.ParseUpdate(&update)
 	}
 }
