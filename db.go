@@ -3,6 +3,7 @@ package tehnikreport
 import (
 	"crypto/sha512"
 	"database/sql"
+	"fmt"
 	"log"
 	"strings"
 
@@ -60,7 +61,7 @@ func (d *Db) Login(phone string, pass string, ChatID int64) (res bool, id uint16
 	log.Println(phone)
 	hash := sha512.New()
 	hash.Write([]byte(pass))
-	pass = string(hash.Sum(nil))
+	pass = fmt.Sprintf("%x", hash.Sum(nil))
 	log.Println(pass)
 	rows, err := d.sUserByPhone.Query("%" + phone)
 	if err != nil {
@@ -105,7 +106,7 @@ func (d *Db) SuperLogin(phone, pass string, ChatID int64) (bool, uint16) {
 	)
 	hash := sha512.New()
 	hash.Write([]byte(pass))
-	pass = string(hash.Sum(nil))
+	pass = fmt.Sprintf("%x", hash.Sum(nil))
 	rows, err := d.mysql.Query("SELECT id,status,password FROM mms_adm_users WHERE gid != 12 AND phone_number LIKE ? LIMIT 1", "%"+phone)
 	if err != nil {
 		log.Println(err.Error())
