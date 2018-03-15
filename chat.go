@@ -168,13 +168,13 @@ type ChatState struct {
 // AddService добавляет выполненную работу
 func (c *ChatState) AddService(u int64, s *Service) {
 	log.Println("AddService", u, *s)
-	serv := c.reports.get(u).Services
+	serv := c.reports[u].Services
 	for _, v := range serv {
 		if v == *s {
 			return
 		}
 	}
-	c.reports.get(u).Services = append(serv, (*s))
+	c.reports[u].Services = append(serv, (*s))
 }
 
 // AddMaterials добавляет материал
@@ -182,7 +182,7 @@ func (c *ChatState) AddMaterials(u int64, m *Material) {
 	log.Println("AddMaterials", u, *m)
 	newmat := make([]Material, 0)
 	newmat = append(newmat, *m)
-	for _, v := range c.reports.get(u).Materials {
+	for _, v := range c.reports[u].Materials {
 		if v == *m {
 			return
 		}
@@ -191,21 +191,21 @@ func (c *ChatState) AddMaterials(u int64, m *Material) {
 		}
 		newmat = append(newmat, v)
 	}
-	c.reports.get(u).Materials = newmat
+	c.reports[u].Materials = newmat
 }
 
 // SetMaterialsCount указывает количество материала
 func (c *ChatState) SetMaterialsCount(u int64, count uint8) {
 	log.Println("SetMaterialCount", u, count)
 	mat := make([]Material, 0)
-	for _, v := range c.reports.get(u).Materials {
+	for _, v := range c.reports[u].Materials {
 		if v.Count == 0 {
 			v.Count = count
 			log.Printf("SetCount %v", mat)
 		}
 		mat = append(mat, v)
 	}
-	c.reports.get(u).Materials = mat
+	c.reports[u].Materials = mat
 }
 
 // MakeReport создает отчет координатору
@@ -261,7 +261,7 @@ func (m *Material) Print() string {
 
 // IsCable были ли кабельные работы
 func (c *ChatState) IsCable(chatid int64) bool {
-	for _, s := range c.reports.get(chatid).Services {
+	for _, s := range c.reports[chatid].Services {
 		if s.Type == 1 {
 			return true
 		}
@@ -271,7 +271,7 @@ func (c *ChatState) IsCable(chatid int64) bool {
 
 // Clear очищает отчет, состояние чата
 func (c *ChatState) Clear(chatid int64) {
-	c.reports.del(chatid)
+	delete(c.reports, chatid)
 	c.action.del(chatid)
 }
 
