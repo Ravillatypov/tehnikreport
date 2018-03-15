@@ -428,11 +428,19 @@ func (ch *ChatBot) Send(cal *tgbotapi.CallbackQuery) {
 			ch.state.name.get(cal.Message.Chat.ID),
 			ch.state.reports.get(cal.Message.Chat.ID).MakeReport())
 		log.Println("Send super: ", ch.state.super)
+		kb := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonURL("перейти к заявке",
+					fmt.Sprintf("http://suz.iqvision.pro/view/orders/%d", ch.state.reports.get(cal.Message.Chat.ID).ID)),
+			),
+		)
 		for _, chat := range ch.state.super {
 			msg := tgbotapi.NewMessage(chat, txt)
+			msg.ReplyMarkup = kb
 			ch.Sendmsg(msg)
 		}
 		msg := tgbotapi.NewMessage(-300011805, txt)
+		msg.ReplyMarkup = kb
 		ch.Sendmsg(msg)
 		ch.Sendmsg(tgbotapi.NewMessage(cal.Message.Chat.ID, "отчет отправлен"))
 		ch.state.Clear(cal.Message.Chat.ID)
