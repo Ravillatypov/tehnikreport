@@ -1,11 +1,15 @@
 package tehnikreport
 
 import (
-	"strings"
-
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
+	"time"
+
+	"io"
+	"net/http"
+	"os"
 
 	"gopkg.in/telegram-bot-api.v4"
 )
@@ -152,13 +156,14 @@ func (ch *ChatBot) ParseUpdate(u *tgbotapi.Update) {
 		go ch.NewReport(u.CallbackQuery)
 	}
 }
+
 // DefaultParse парсит CallbackQuery
-func (ch *ChatBot) DefaultParse(u *tgbotapi.Update){
-if u.CallbackQuery == nil{
-	return
-}
-dat:=u.CallbackQuery.Data
-	switch{
+func (ch *ChatBot) DefaultParse(u *tgbotapi.Update) {
+	if u.CallbackQuery == nil {
+		return
+	}
+	dat := u.CallbackQuery.Data
+	switch {
 	case strings.HasPrefix(dat, "report"):
 		ch.NewReport(u.CallbackQuery)
 	case strings.HasPrefix(dat, "refuse"):
@@ -169,7 +174,6 @@ dat:=u.CallbackQuery.Data
 		ch.Transfer(u)
 	}
 }
-
 
 // Refuse обработка отказа
 func (ch *ChatBot) Refuse(u *tgbotapi.Update) {
@@ -189,10 +193,37 @@ func (ch *ChatBot) Beneficial(u *tgbotapi.Update) {
 
 // Photo сохранение фото по льготной заявки
 func (ch *ChatBot) Photo(u *tgbotapi.Update) {
+	if u.Message.Photo != nil {
+		for _, ph := range *u.Message.Photo {
+			name := fmt.Sprintf("/var/www/suz.iqivision.pro/web/uploads/%d.jpg", time.Now().UnixNano())
+			fd, err := os.Create(name)
+			if err != nil {
+				log.Println(err.Error())
+				continue
+			}
+			defer fd.Close()
+			tl := tgbotapi.File{FileID: ph.FileID, FileSize: ph.FileSize}
+			link := tl.Link(ch.bot.Token)
+			resp, err := http.Get(link)
+			if err != nil {
+				io.Copy(fd, resp.Body)
+			}
+			defer resp.Body.Close()
+		}
+	}
 }
 
 // Date установка даты переноса
 func (ch *ChatBot) Date(u *tgbotapi.Update) {
+	if u.Message != nil {
+		now := time.Now()
+		tm := now
+		err := tm.UnmarshalText([]byte(u.Message.Text))
+		if err != nil || tm.Unix() < now.Unix() {
+			log.Println("Date: дата указана не правильно")
+			return
+		}
+	}
 }
 
 // Tiket получает список заявок пользователя и отправляет с кнопкой для отчета
@@ -205,7 +236,7 @@ func (ch *ChatBot) Tiket(m *tgbotapi.Message) {
 	if len(tikets) > 0 {
 		for _, t := range tikets {
 			msg.Text = fmt.Sprintf("клиент: %s\nадрес: %s", t.Client, t.Address)
-            
+
 			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 				tgbotapi.NewInlineKeyboardRow(
 					tgbotapi.NewInlineKeyboardButtonData("выполнено", fmt.Sprintf("report%d", t.ID)),
@@ -306,10 +337,9 @@ func (ch *ChatBot) NewReport(cal *tgbotapi.CallbackQuery) {
 		ch.state.action.set(cal.Message.Chat.ID, "bso")
 		ch.state.reports[cal.Message.Chat.ID] = &Report{ID: uint32(id), Status: true}
 		ch.bot.DeleteMessage(tgbotapi.DeleteMessageConfig{ChatID: cal.Message.Chat.ID, MessageID: cal.Message.MessageID})
-        ch.Sendmsg(tgbotapi.NewMessage(cal.Message.Chat.ID, "Введите номер БСО"))
+		ch.Sendmsg(tgbotapi.NewMessage(cal.Message.Chat.ID, "Введите номер БСО"))
 	}
 }
-
 
 // DopServices доп услуги
 func (ch *ChatBot) DopServices(u *tgbotapi.Update) {

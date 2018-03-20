@@ -69,6 +69,7 @@ type Report struct {
 	Amount      uint16     // сумма оказанных услуг
 	Materials   []Material // затраченные материалы
 	DopServices string     // дополнительные услуги
+	Tags        string     // теги добавляемые к заявке
 }
 
 // Material id материала и количество
