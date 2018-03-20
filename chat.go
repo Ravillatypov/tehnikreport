@@ -62,6 +62,7 @@ func (s *Uint16) get(id int64) uint16 {
 // струкура удаляется
 type Report struct {
 	ID, BSO     uint32     // номер заявки и номер БСО
+	Address     string     // адрес заявки
 	Comment     string     // комментарии техника по заявке, здесь же можно указать услуги
 	Status      bool       // заявка выполнена или нет
 	Services    []Service  // перечень выполненных работ
@@ -145,11 +146,11 @@ var (
 	}
 	// ReportForm шаблон отчета
 	ReportForm = `id заявки: %d
-	номер БСО: %s
-	сумма: %d
-	выполненные работы: %s
-	комментарии: %s
-	`
+номер БСО: %s
+сумма: %d
+выполненные работы: %s
+комментарии: %s
+`
 	// ForCoordirantors шаблон письма для координатора
 	ForCoordirantors = `Техник: %s
 %s`
@@ -287,10 +288,33 @@ func (c *ChatState) AddSuper(chatid int64) {
 	c.super = s
 }
 
+// ServiceIsExist - проверяет есть ли указанный сервис
+func (c *Report) ServiceIsExist(typ, job uint8) bool {
+	for _, s := range c.Services {
+		if s.Type == typ && s.Job == job {
+			return true
+		}
+	}
+	return false
+}
+
+// MaterialIsExist - проверяет есть ли указанный сервис
+func (c *Report) MaterialIsExist(id uint8) bool {
+	for _, s := range c.Materials {
+		if s.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // GetKeyboard создаем кнопки выбора услуг
-func GetKeyboard(i int) *tgbotapi.InlineKeyboardMarkup {
+func GetKeyboard(i int, rep *Report) *tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
 	for k, v := range ServiceList[i] {
+		if rep.ServiceIsExist(uint8(i), uint8(k)) {
+			continue
+		}
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(v, fmt.Sprintf("%d", k))})
 	}
 	rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData("все введено", "remove")})
@@ -298,10 +322,10 @@ func GetKeyboard(i int) *tgbotapi.InlineKeyboardMarkup {
 }
 
 // GetMaterialsKeyb создаем кнопки выбора услуг
-func GetMaterialsKeyb() *tgbotapi.InlineKeyboardMarkup {
+func GetMaterialsKeyb(rep *Report) *tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
 	for k, v := range MaterialList {
-		if k == 0 {
+		if k == 0 || rep.MaterialIsExist(uint8(k)) {
 			continue
 		}
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(v, fmt.Sprintf("%d", k))})
